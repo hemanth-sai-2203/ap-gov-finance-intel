@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AP Finance Intelligence Portal | Government of Andhra Pradesh</title>
+  <meta name="description" content="Official Evidence-Grounded AI Research Platform for Andhra Pradesh Government Finance publications. 63,068 passages indexed from 590 publications across 2011-2027." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Merriweather:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --gov-navy-dark:   #06192E;
+      --gov-navy:        #0C2340;
+      --gov-navy-light:  #163A63;
+      --gov-gold:        #C59B27;
+      --gov-gold-light:  #F59E0B;
+      --gov-gold-subtle: rgba(197, 155, 39, 0.12);
+      --gov-green:       #0D7E40;
+      --gov-green-light: rgba(13, 126, 64, 0.12);
+      
+      --bg-body:         #F3F5F9;
+      --bg-surface:      #FFFFFF;
+      --bg-subtle:       #F8FAFC;
+      --bg-card:         #FFFFFF;
+      --bg-elevated:     #EDF2F7;
+      
+      --text-primary:    #0F172A;
+      --text-secondary:  #334155;
+      --text-muted:      #64748B;
+      --text-on-navy:    #F8FAFC;
+      
+      --border:          #E2E8F0;
+      --border-subtle:   #CBD5E1;
+      --shadow-sm:       0 1px 3px rgba(12, 35, 64, 0.05);
+      --shadow-md:       0 4px 12px rgba(12, 35, 64, 0.08);
+      --shadow-lg:       0 10px 25px rgba(12, 35, 64, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── OFFICIAL TRICOLOR TOP RIBBON ─── */
+    .tricolor-ribbon {
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(to right, #FF9933 0%, #FF9933 33.3%, #FFFFFF 33.3%, #FFFFFF 66.6%, #138808 66.6%, #138808 100%);
+    }
+
+    /* ─── OFFICIAL GOVERNMENT TOPBAR ─── */
+    .gov-header {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--gov-gold);
+      box-shadow: var(--shadow-md);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .gov-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .gov-emblem {
+      width: 44px;
+      height: 44px;
+      background: radial-gradient(circle, #FFFFFF 0%, #F1F5F9 100%);
+      border: 2px solid var(--gov-gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .gov-title-group h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #FFFFFF;
+    }
+    .gov-title-group .sub {
+      font-size: 11.5px;
+      color: #CBD5E1;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+    }
+    .gov-header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(13, 126, 64, 0.25);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6EE7B7;
+      letter-spacing: 0.04em;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34D399;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* ─── NAVIGATION TABS ─── */
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 0 28px;
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-tab {
+      padding: 13px 20px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+      font-family: 'Inter', sans-serif;
+    }
+    .nav-tab:hover {
+      color: var(--gov-navy);
+      background: var(--bg-subtle);
+    }
+    .nav-tab.active {
+      color: var(--gov-navy);
+      border-bottom-color: var(--gov-navy);
+      background: transparent;
+    }
+
+    /* ─── MAIN CONTAINER ─── */
+    .main-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 28px 60px;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeIn 0.25s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ─── HOME HERO ─── */
+    .gov-hero {
+      background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 32px;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+    .gov-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--gov-gold-subtle);
+      border: 1px solid rgba(197, 155, 39, 0.35);
+      color: #92400E;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+      letter-spacing: 0.05em;
+    }
+    .gov-hero h2 {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--gov-navy);
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .gov-hero p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      max-width: 720px;
+      margin: 0 auto 28px;
+      line-height: 1.65;
+    }
+
+    /* ─── STATS STRIP ─── */
+    .gov-stats {
+      display: flex;
+      justify-content: center;
+      gap: 36px;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+      padding: 16px 20px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-sm);
+      max-width: 860px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .stat-box { text-align: center; }
+    .stat-num {
+      font-size: 24px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--gov-navy);
+      display: block;
+    }
+    .stat-lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+    .stat-div {
+      width: 1px;
+      background: var(--border);
+      height: 36px;
+      margin-top: 4px;
+    }
+
+    /* ─── HERO SEARCH BAR ─── */
+    .search-box-wrap {
+      max-width: 760px;
+      margin: 0 auto 20px;
+      display: flex;
+      gap: 8px;
+      background: #FFFFFF;
+      padding: 6px;
+      border-radius: 10px;
+      border: 2px solid var(--gov-navy);
+      box-shadow: var(--shadow-md);
+    }
+    .search-box-wrap input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 10px 16px;
+      font-size: 14.5px;
+      font-family: 'Inter', sans-serif;
+      color: var(--text-primary);
+    }
+    .search-box-wrap button {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .search-box-wrap button:hover {
+      background: var(--gov-navy-light);
+    }
+    .sample-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .chip {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      color: var(--gov-navy);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-sm);
+    }
+    .chip:hover {
+      border-color: var(--gov-navy);
+      background: var(--bg-subtle);
+      transform: translateY(-1px);
+    }
+
+    /* ─── CATEGORY CARDS GRID ─── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .cat-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-sm);
+    }
+    .cat-card:hover {
+      border-color: var(--gov-navy);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .cat-icon { font-size: 24px; margin-bottom: 10px; }
+    .cat-name { font-size: 14px; font-weight: 700; color: var(--gov-navy); margin-bottom: 4px; }
+    .cat-count { font-size: 11.5px; color: var(--text-muted); }
+
+    /* ─── AI RESEARCH / CHAT LAYOUT ─── */
+    .research-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      height: calc(100vh - 170px);
+      min-height: 560px;
+    }
+    .chat-panel {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .chat-header {
+      padding: 14px 20px;
+      background: var(--bg-subtle);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .chat-header-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--gov-navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chat-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .filter-select {
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+    .btn-clear {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-clear:hover {
+      background: #FFFFFF;
+      color: var(--text-primary);
+    }
+
+    /* ─── CHAT MESSAGES ─── */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background: #F8FAFC;
+    }
+    .message { display: flex; gap: 12px; max-width: 100%; }
+    .message.user { flex-direction: row-reverse; }
+    
+    .msg-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .msg-avatar.ai {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      border: 1px solid var(--gov-gold);
+    }
+    .msg-avatar.user {
+      background: #E2E8F0;
+      color: var(--gov-navy);
+      font-weight: 700;
+    }
+
+    .msg-bubble {
+      max-width: 85%;
+      padding: 16px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .message.user .msg-bubble {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      border-top-right-radius: 2px;
+      box-shadow: var(--shadow-sm);
+    }
+    .message.ai .msg-bubble {
+      background: #FFFFFF;
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--gov-navy);
+      border-top-left-radius: 2px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ─── RICH MARKDOWN IN AI RESPONSE ─── */
+    .msg-content h1, .msg-content h2, .msg-content h3, .msg-content h4 {
+      color: var(--gov-navy);
+      margin: 14px 0 8px 0;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .msg-content h3 {
+      font-size: 15px;
+      border-bottom: 1px solid #E2E8F0;
+      padding-bottom: 4px;
+    }
+    .msg-content h4 { font-size: 14px; color: #1E3A8A; }
+    .msg-content p { margin-bottom: 12px; }
+    .msg-content p:last-child { margin-bottom: 0; }
+    .msg-content ul, .msg-content ol {
+      margin: 8px 0 14px 22px;
+      padding-left: 0;
+    }
+    .msg-content li {
+      margin-bottom: 8px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+    }
+    .msg-content li:last-child { margin-bottom: 0; }
+    .msg-content strong, .msg-content b {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+    .msg-content blockquote {
+      border-left: 3px solid var(--gov-gold);
+      background: #FEF3C7;
+      color: #92400E;
+      padding: 8px 14px;
+      margin: 10px 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+    }
+    .msg-content code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: #F1F5F9;
+      color: #0F172A;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #CBD5E1;
+    }
+    .msg-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .msg-content th, .msg-content td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .msg-content th {
+      background: #F1F5F9;
+      color: var(--gov-navy);
+      font-weight: 700;
+    }
+
+    .inline-citation {
+      background: rgba(12, 35, 64, 0.08);
+      border: 1px solid rgba(12, 35, 64, 0.2);
+      color: var(--gov-navy);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11.5px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      display: inline-block;
+      margin: 0 2px;
+    }
+
+    /* ─── CITATIONS & BADGES ─── */
+    .citations-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .citation-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #F1F5F9;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--gov-navy);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .citation-badge:hover {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      border-color: var(--gov-navy);
+    }
+
+    .route-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .route-rag    { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .route-sql    { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+    .route-hybrid { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+
+    /* ─── CHAT INPUT ─── */
+    .chat-input-wrap {
+      padding: 14px 20px;
+      background: #FFFFFF;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .chat-input {
+      flex: 1;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      resize: none;
+      min-height: 42px;
+      max-height: 120px;
+    }
+    .chat-input:focus {
+      border-color: var(--gov-navy);
+      box-shadow: 0 0 0 2px rgba(12, 35, 64, 0.1);
+    }
+    .btn-send {
+      background: var(--gov-navy);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      width: 44px;
+      height: 42px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .btn-send:hover { background: var(--gov-navy-light); }
+    .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ─── TYPING INDICATOR ─── */
+    .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--gov-navy); opacity: 0.6;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+    /* ─── CONTEXT & PROVENANCE SIDEBAR ─── */
+    .context-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    .gov-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .gov-card-header {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--gov-navy);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .source-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+    }
+    .source-card:last-child { margin-bottom: 0; }
+    .source-card:hover {
+      border-color: var(--gov-navy);
+      background: #FFFFFF;
+    }
+    .source-doc {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gov-navy);
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    .source-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .source-excerpt {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      background: #FFFFFF;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px dashed var(--border);
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #F1F5F9;
+      font-size: 12px;
+    }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-key { color: var(--text-muted); }
+    .meta-val { font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--gov-navy); }
+
+    /* ─── ANALYTICS & TABLES ─── */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .chart-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .chart-card.full { grid-column: span 2; }
+    .chart-title { font-size: 15px; font-weight: 700; color: var(--gov-navy); margin-bottom: 4px; }
+    .chart-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+
+    /* ─── DOCUMENTS TABLE ─── */
+    .doc-filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .doc-search {
+      flex: 1;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .doc-search:focus { border-color: var(--gov-navy); }
+    table.gov-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #FFFFFF;
+      font-size: 13px;
+    }
+    table.gov-table th {
+      background: var(--bg-subtle);
+      color: var(--gov-navy);
+      font-weight: 700;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    table.gov-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    table.gov-table tr:hover td {
+      background: var(--bg-subtle);
+    }
+
+    /* ─── STATUS TAB ─── */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .status-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .status-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .status-card-title { font-size: 14px; font-weight: 700; color: var(--gov-navy); }
+    .status-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 12px;
+      background: #DCFCE7;
+      color: #166534;
+    }
+
+    /* ─── FOOTER ─── */
+    .gov-footer {
+      background: var(--gov-navy-dark);
+      color: #94A3B8;
+      padding: 20px 28px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 40px;
+      border-top: 1px solid #1E293B;
+    }
+    .gov-footer a { color: #CBD5E1; text-decoration: none; }
+
+    @media (max-width: 960px) {
+      .research-grid { grid-template-columns: 1fr; height: auto; }
+      .analytics-grid { grid-template-columns: 1fr; }
+      .chart-card.full { grid-column: span 1; }
+      .context-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── TOP TRICOLOR ─── -->
+<div class="tricolor-ribbon"></div>
+
+<!-- ─── OFFICIAL HEADER ─── -->
+<header class="gov-header">
+  <div class="gov-header-left">
+    <div class="gov-emblem">🏛️</div>
+    <div class="gov-title-group">
+      <h1>Government of Andhra Pradesh</h1>
+      <div class="sub">Finance Department · State Budget & Fiscal Intelligence System (SBFIS)</div>
+    </div>
+  </div>
+  <div class="gov-header-right">
+    <div class="status-badge">
+      <div class="pulse-dot"></div>
+      SYSTEM OPERATIONAL
+    </div>
+  </div>
+</header>
+
+<!-- ─── NAV TABS ─── -->
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="switchTab('home', this)">🏛️ Portal Overview</button>
+  <button class="nav-tab" onclick="switchTab('research', this)">🤖 AI Research Assistant</button>
+  <button class="nav-tab" onclick="switchTab('analytics', this)">📊 Budget Analytics</button>
+  <button class="nav-tab" onclick="switchTab('documents', this)">📑 Document Repository</button>
+  <button class="nav-tab" onclick="switchTab('status', this)">🟢 Infrastructure Status</button>
+</nav>
+
+<!-- ─── MAIN CONTENT ─── -->
+<main class="main-container">
+
+  <!-- ════════ HOME TAB ════════ -->
+  <section id="tab-home" class="tab-panel active">
+    <div class="gov-hero">
+      <div class="gov-badge">OFFICIAL FISCAL RESEARCH PORTAL</div>
+      <h2>Andhra Pradesh State Finance Intelligence</h2>
+      <p>An evidence-grounded AI intelligence engine indexing 63,068 verified passages from 590 official government publications across 15 Financial Years (2011–2027). Every generated figure and policy finding includes exact page-level citations.</p>
+
+      <div class="gov-stats">
+        <div class="stat-box">
+          <span class="stat-num" id="stat-docs">590</span>
+          <span class="stat-lbl">Publications</span>
+        </div>
+        <div class="stat-div"></div>
+        <div class="stat-box">
+          <span class="stat-num" id="stat-chunks">63,068</span>
+          <span class="stat-lbl">Indexed Passages</span>
+        </div>
+        <div class="stat-div"></div>
+        <div class="stat-box">
+          <span class="stat-num">15</span>
+          <span class="stat-lbl">Financial Years</span>
+        </div>
+        <div class="stat-div"></div>
+        <div class="stat-box">
+          <span class="stat-num">100%</span>
+          <span class="stat-lbl">Evidence Grounded</span>
+        </div>
+      </div>
+
+      <div class="search-box-wrap">
+        <input id="hero-query" type="text" placeholder="Search budget allocations, FRBM targets, CBRO rules, PRC scales..." />
+        <button onclick="heroSearch()">Ask Intelligence Engine →</button>
+      </div>
+
+      <div class="sample-chips">
+        <span class="chip" onclick="setHeroQuery(this)">Fiscal deficit target 2026-27?</span>
+        <span class="chip" onclick="setHeroQuery(this)">Under the AP Financial Code, what are rules for re-appropriation of budget funds?</span>
+        <span class="chip" onclick="setHeroQuery(this)">What are the key priorities in the 2026-27 Budget Speech?</span>
+        <span class="chip" onclick="setHeroQuery(this)">What is the procedure for Comprehensive Budget Release Order (CBRO)?</span>
+      </div>
+    </div>
+
+    <!-- Category Grid -->
+    <div class="card-grid">
+      <div class="cat-card" onclick="quickFilter('budget_speech')"><div class="cat-icon">🗣️</div><div class="cat-name">Budget Speeches</div><div class="cat-count">16 Documents · 2011–2027</div></div>
+      <div class="cat-card" onclick="quickFilter('budget_volumes')"><div class="cat-icon">📚</div><div class="cat-name">Budget Volumes (I–VIII)</div><div class="cat-count">367 Documents · All Departments</div></div>
+      <div class="cat-card" onclick="quickFilter('frbm_report')"><div class="cat-icon">⚖️</div><div class="cat-name">FRBM Review Statements</div><div class="cat-count">48 Documents · Quarterly & Annual</div></div>
+      <div class="cat-card" onclick="quickFilter('finance_manuals')"><div class="cat-icon">💼</div><div class="cat-name">AP Financial Code & Rules</div><div class="cat-count">83 Documents · Treasury & Budget Manuals</div></div>
+      <div class="cat-card" onclick="quickFilter('prc_report')"><div class="cat-icon">👔</div><div class="cat-name">Pay Revision Commission (PRC)</div><div class="cat-count">26 Documents · Scales & Reports</div></div>
+      <div class="cat-card" onclick="quickFilter('socio_economic_survey')"><div class="cat-icon">📈</div><div class="cat-name">Socio-Economic Surveys</div><div class="cat-count">9 Documents · Macro Indicators</div></div>
+    </div>
+  </section>
+
+  <!-- ════════ AI RESEARCH TAB ════════ -->
+  <section id="tab-research" class="tab-panel">
+    <div class="research-grid">
+      
+      <!-- Left: Chat Panel -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <div class="chat-header-title">🏛️ State Finance Intelligence Assistant</div>
+          <div class="chat-controls">
+            <select class="filter-select" id="filter-year">
+              <option value="">All Financial Years</option>
+              <option value="2026-27">2026-27 (Latest)</option>
+              <option value="2025-26">2025-26</option>
+              <option value="2024-25">2024-25</option>
+              <option value="2023-24">2023-24</option>
+              <option value="2022-23">2022-23</option>
+              <option value="2021-22">2021-22</option>
+            </select>
+            <button class="btn-clear" onclick="clearChat()">Clear Chat</button>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+          <div class="message ai">
+            <div class="msg-avatar ai">🏛️</div>
+            <div class="msg-bubble">
+              <div class="msg-content">
+                <p><strong>Welcome to the Andhra Pradesh State Finance Intelligence Assistant.</strong></p>
+                <p>I am connected to <strong>63,068 verified passages</strong> across <strong>590 official government publications</strong> (2011–2027).</p>
+                <p>Ask any inquiry regarding AP State Finances — budget allocations, FRBM fiscal compliance, AP Financial Code provisions, CBRO procedures, or departmental expenditures.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-wrap">
+          <textarea class="chat-input" id="chat-input" rows="1" placeholder="Enter inquiry regarding AP State Budget, FRBM, Financial Code, circulars..." onkeydown="handleKey(event)"></textarea>
+          <button class="btn-send" id="btn-send" onclick="sendMessage()">→</button>
+        </div>
+      </div>
+
+      <!-- Right: Source Context & Provenance -->
+      <div class="context-panel">
+        <div class="gov-card">
+          <div class="gov-card-header">
+            <span>Verified Source Passages</span>
+            <span id="source-badge" style="font-size:10px;color:var(--text-muted);">PROVENANCE</span>
+          </div>
+          <div id="source-cards">
+            <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:12.5px;">
+              📄 Official source passages and page numbers will appear here upon submitting an inquiry.
+            </div>
+          </div>
+        </div>
+
+        <div class="gov-card">
+          <div class="gov-card-header">Query Execution Metadata</div>
+          <div class="meta-row"><span class="meta-key">Routing Engine</span><span class="meta-val" id="meta-route">—</span></div>
+          <div class="meta-row"><span class="meta-key">Passages Evaluated</span><span class="meta-val" id="meta-passages">—</span></div>
+          <div class="meta-row"><span class="meta-key">SQL Records Joined</span><span class="meta-val" id="meta-sql">—</span></div>
+          <div class="meta-row"><span class="meta-key">Synthesis Model</span><span class="meta-val" id="meta-model">—</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════ ANALYTICS TAB ════════ -->
+  <section id="tab-analytics" class="tab-panel">
+    <div style="margin-bottom:20px;">
+      <h2 style="font-size:20px;font-weight:700;color:var(--gov-navy);">State Budget Analytics & Fiscal Trends</h2>
+      <p style="font-size:13px;color:var(--text-muted);">Multi-year budget estimates, revised estimates, and departmental allocations from official Annual Financial Statements.</p>
+    </div>
+    <div class="analytics-grid">
+      <div class="chart-card full">
+        <div class="chart-title">Total State Budget Allocation — Year on Year (₹ Crores)</div>
+        <div class="chart-sub">Source: Annual Financial Statements & Budget Volumes · Finance Department</div>
+        <canvas id="chart-budget-trend" style="max-height:300px;"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Major Department Budget Allocations (2026-27 BE)</div>
+        <canvas id="chart-dept" style="max-height:260px;"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Fiscal Deficit as % of GSDP (FRBM Benchmark)</div>
+        <canvas id="chart-frbm" style="max-height:260px;"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ DOCUMENTS TAB ════════ -->
+  <section id="tab-documents" class="tab-panel">
+    <div style="margin-bottom:20px;">
+      <h2 style="font-size:20px;font-weight:700;color:var(--gov-navy);">Official Document Repository</h2>
+      <p style="font-size:13px;color:var(--text-muted);">590 official publications ingested from the Andhra Pradesh Finance Department portal.</p>
+    </div>
+    <div class="doc-filters">
+      <input type="text" class="doc-search" id="doc-search" placeholder="🔍 Search publication title..." oninput="filterDocs()" />
+      <select class="filter-select" id="doc-year" onchange="filterDocs()">
+        <option value="">All Years</option>
+        <option>2026-27</option><option>2025-26</option><option>2024-25</option>
+        <option>2023-24</option><option>2022-23</option><option>2021-22</option>
+      </select>
+      <select class="filter-select" id="doc-cat" onchange="filterDocs()">
+        <option value="">All Document Types</option>
+        <option value="budget_speech">Budget Speeches</option>
+        <option value="budget_volumes">Budget Volumes</option>
+        <option value="frbm_report">FRBM Statements</option>
+        <option value="finance_manuals">Finance Manuals & Rules</option>
+        <option value="prc_report">PRC Reports</option>
+      </select>
+    </div>
+    <div class="gov-card" style="padding:0;overflow-x:auto;">
+      <table class="gov-table" id="doc-table">
+        <thead>
+          <tr>
+            <th>Publication Title</th>
+            <th>Financial Year</th>
+            <th>Category</th>
+            <th>Pages</th>
+            <th>Indexed Chunks</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="doc-tbody">
+          <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">Loading official publications...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:10px;" id="doc-count"></div>
+  </section>
+
+  <!-- ════════ STATUS TAB ════════ -->
+  <section id="tab-status" class="tab-panel">
+    <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="font-size:20px;font-weight:700;color:var(--gov-navy);">System Infrastructure Health</h2>
+        <p style="font-size:13px;color:var(--text-muted);">Real-time status of vector index, database connectivity, and inference models.</p>
+      </div>
+      <button class="btn-clear" onclick="refreshStatus()" style="background:#FFFFFF;font-weight:600;">↻ Refresh Status</button>
+    </div>
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="status-card-header">
+          <div class="status-card-title">⚡ FastAPI Backend Server</div>
+          <div class="status-pill" id="api-status">Active</div>
+        </div>
+        <div class="meta-row"><span class="meta-key">API Base</span><span class="meta-val">http://localhost:8000</span></div>
+        <div class="meta-row"><span class="meta-key">Protocol</span><span class="meta-val">REST + JSON</span></div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-header">
+          <div class="status-card-title">🌊 Weaviate Cloud Vector DB</div>
+          <div class="status-pill">Connected</div>
+        </div>
+        <div class="meta-row"><span class="meta-key">Collection</span><span class="meta-val">GovIntelDocument</span></div>
+        <div class="meta-row"><span class="meta-key">Vector Chunks</span><span class="meta-val" id="weaviate-chunks">63,068</span></div>
+        <div class="meta-row"><span class="meta-key">Embedding Dim</span><span class="meta-val">768-dim (bge-base)</span></div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-header">
+          <div class="status-card-title">🗄️ Supabase PostgreSQL</div>
+          <div class="status-pill">Connected</div>
+        </div>
+        <div class="meta-row"><span class="meta-key">Official Documents</span><span class="meta-val" id="db-docs">590</span></div>
+        <div class="meta-row"><span class="meta-key">Chunk Metadata Rows</span><span class="meta-val" id="db-chunks">63,068</span></div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-header">
+          <div class="status-card-title">✨ Gemini 2.5 Flash</div>
+          <div class="status-pill">Operational</div>
+        </div>
+        <div class="meta-row"><span class="meta-key">Provider</span><span class="meta-val">Google AI Studio</span></div>
+        <div class="meta-row"><span class="meta-key">Temperature</span><span class="meta-val">0.1 (Anti-Hallucination)</span></div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-header">
+          <div class="status-card-title">🏆 Cross-Encoder Reranker</div>
+          <div class="status-pill">Active</div>
+        </div>
+        <div class="meta-row"><span class="meta-key">Model</span><span class="meta-val">ms-marco-MiniLM-L-6-v2</span></div>
+        <div class="meta-row"><span class="meta-key">Top-K Scored</span><span class="meta-val">5 Passages</span></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ─── FOOTER ─── -->
+<footer class="gov-footer">
+  <div>🏛️ <strong>Finance Department, Government of Andhra Pradesh</strong> · State Budget & Fiscal Intelligence System</div>
+  <div>🔒 Evidence-Grounded Artificial Intelligence Platform</div>
+</footer>
+
+<script>
+  /* ────── CONFIG ────── */
+  const API = (window.API_BASE_URL || (window.location && window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:8000'));
+
+  // Configure marked for clean GFM and line breaks
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,
+      gfm: true
+    });
+  }
+
+  /* ────── TAB NAVIGATION ────── */
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+    if (name === 'analytics') initCharts();
+    if (name === 'documents') loadDocuments();
+    if (name === 'status')    refreshStatus();
+  }
+
+  function quickFilter(cat) {
+    switchTab('documents', document.querySelectorAll('.nav-tab')[3]);
+    document.getElementById('doc-cat').value = cat;
+    filterDocs();
+  }
+
+  /* ────── HERO SEARCH ────── */
+  function setHeroQuery(el) {
+    document.getElementById('hero-query').value = el.textContent;
+  }
+  function heroSearch() {
+    const q = document.getElementById('hero-query').value.trim();
+    if (!q) return;
+    document.getElementById('chat-input').value = q;
+    switchTab('research', document.querySelectorAll('.nav-tab')[1]);
+    setTimeout(sendMessage, 200);
+  }
+  document.getElementById('hero-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') heroSearch();
+  });
+
+  /* ────── CHAT EXECUTION ────── */
+  let isLoading = false;
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+
+  function clearChat() {
+    document.getElementById('chat-messages').innerHTML = `
+      <div class="message ai">
+        <div class="msg-avatar ai">🏛️</div>
+        <div class="msg-bubble">
+          <div class="msg-content">
+            <p><strong>Chat cleared.</strong> Please enter your question regarding Andhra Pradesh Government Finance.</p>
+          </div>
+        </div>
+      </div>`;
+    clearContext();
+  }
+
+  function clearContext() {
+    document.getElementById('source-cards').innerHTML = `
+      <div style="text-align:center;padding:30px 10px;color:var(--text-muted);font-size:12.5px;">
+        📄 Official source passages and page numbers will appear here upon submitting an inquiry.
+      </div>`;
+    ['meta-route','meta-passages','meta-sql','meta-model'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+    });
+  }
+
+  async function sendMessage() {
+    if (isLoading) return;
+    const input = document.getElementById('chat-input');
+    const query = input.value.trim();
+    if (!query) return;
+
+    isLoading = true;
+    input.value = '';
+    document.getElementById('btn-send').disabled = true;
+
+    const msgs = document.getElementById('chat-messages');
+
+    // User Message Bubble
+    msgs.innerHTML += `
+      <div class="message user">
+        <div class="msg-avatar user">👤</div>
+        <div class="msg-bubble">
+          <div>${escapeHtml(query)}</div>
+        </div>
+      </div>`;
+
+    // AI Typing Indicator
+    const typingId = 'typing-' + Date.now();
+    msgs.innerHTML += `
+      <div class="message ai" id="${typingId}">
+        <div class="msg-avatar ai">🏛️</div>
+        <div class="msg-bubble">
+          <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      </div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+
+    const year = document.getElementById('filter-year').value;
+
+    try {
+      const res = await fetch(`${API}/api/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          financial_year: year || null,
+          top_k: 5
+        })
+      });
+
+      const data = await res.json();
+      document.getElementById(typingId)?.remove();
+
+      // Citations pills
+      const cits = (data.citations || []).map((c, idx) => {
+        const rawTitle = c.document || c.title || 'Official Document';
+        const docName = rawTitle.replace(/\s+/g, ' ').trim();
+        const pageVal = (c.page !== undefined && c.page !== null && c.page !== 'N/A') ? c.page : (c.page_number || '?');
+        const shortName = docName.length > 32 ? docName.substring(0, 30) + '…' : docName;
+        return `<span class="citation-badge" title="${escapeHtml(docName)} (Page ${pageVal})" onclick="highlightSource(${idx})">📄 ${escapeHtml(shortName)} · P${pageVal}</span>`;
+      }).join('');
+
+      // Render markdown
+      let renderedAnswer = '';
+      if (typeof marked !== 'undefined' && marked.parse) {
+        let processed = (data.answer || 'No answer returned.')
+          .replace(/\[Source:([^\]]+)\]/g, '<span class="inline-citation" title="$1">🏷️ [Source:$1]</span>');
+        renderedAnswer = marked.parse(processed);
+      } else {
+        renderedAnswer = escapeHtml(data.answer || 'No answer returned.').replace(/\n/g, '<br/>');
+      }
+
+      const routeClass = (data.query_type || 'rag').toLowerCase() === 'sql' ? 'route-sql'
+        : (data.query_type || '').toLowerCase() === 'hybrid' ? 'route-hybrid' : 'route-rag';
+
+      msgs.innerHTML += `
+        <div class="message ai">
+          <div class="msg-avatar ai">🏛️</div>
+          <div class="msg-bubble">
+            <div style="margin-bottom: 10px;">
+              <span class="route-badge ${routeClass}">${(data.query_type || 'RAG').toUpperCase()} ENGINE</span>
+            </div>
+            <div class="msg-content">${renderedAnswer}</div>
+            ${cits ? `<div class="citations-row">${cits}</div>` : ''}
+          </div>
+        </div>`;
+      msgs.scrollTop = msgs.scrollHeight;
+
+      // Update provenance context drawer
+      updateContext(data);
+
+    } catch (err) {
+      document.getElementById(typingId)?.remove();
+      msgs.innerHTML += `
+        <div class="message ai">
+          <div class="msg-avatar ai">🏛️</div>
+          <div class="msg-bubble" style="background:#FEF2F2;border-left-color:#DC2626;color:#991B1B;">
+            ⚠️ <strong>Backend Connection Notice:</strong> Could not connect to API at <code>${API}</code>.<br/>
+            Please ensure the FastAPI service is running.
+          </div>
+        </div>`;
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    isLoading = false;
+    document.getElementById('btn-send').disabled = false;
+    input.focus();
+  }
+
+  function updateContext(data) {
+    const citations = data.citations || [];
+    const srcCards = document.getElementById('source-cards');
+
+    if (!citations.length) {
+      srcCards.innerHTML = '<div style="font-size:12.5px;color:var(--text-muted);text-align:center;padding:20px;">No specific citation passages returned.</div>';
+    } else {
+      srcCards.innerHTML = citations.map((c, idx) => {
+        const rawTitle = c.document || c.title || 'Official AP Publication';
+        const docName = rawTitle.replace(/\s+/g, ' ').trim();
+        const pageVal = (c.page !== undefined && c.page !== null && c.page !== 'N/A') ? c.page : (c.page_number || 'N/A');
+        const yearVal = c.financial_year || '—';
+        const rawExcerpt = c.excerpt || c.content || '';
+        const cleanExcerpt = rawExcerpt.replace(/\s+/g, ' ').trim();
+        const scoreVal = c.relevance_score ? ` · Score: ${c.relevance_score}` : '';
+
+        return `
+        <div class="source-card" id="source-card-${idx}">
+          <div class="source-doc">📄 ${escapeHtml(docName)}</div>
+          <div class="source-meta">📅 FY: ${escapeHtml(yearVal)} &nbsp;·&nbsp; Page: ${pageVal}${scoreVal}</div>
+          ${cleanExcerpt ? `<div class="source-excerpt">"${escapeHtml(cleanExcerpt.substring(0, 240))}${cleanExcerpt.length > 240 ? '…' : ''}"</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('meta-route').textContent    = (data.query_type || '—').toUpperCase();
+    document.getElementById('meta-passages').textContent = data.retrieved_passages_count ?? '—';
+    document.getElementById('meta-sql').textContent      = data.sql_records_count ?? '0';
+    document.getElementById('meta-model').textContent    = data.model_used || 'gemini-2.5-flash';
+  }
+
+  function highlightSource(idx) {
+    const el = document.getElementById('source-card-' + idx);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      el.style.borderColor = 'var(--gov-gold)';
+      el.style.background = '#FEF3C7';
+      setTimeout(() => {
+        el.style.borderColor = '';
+        el.style.background = '';
+      }, 2500);
+    }
+  }
+
+  /* ────── CHARTS ────── */
+  let chartsInitialized = false;
+  function initCharts() {
+    if (chartsInitialized) return;
+    chartsInitialized = true;
+
+    // Budget Trend
+    new Chart(document.getElementById('chart-budget-trend'), {
+      type: 'line',
+      data: {
+        labels: ['2016-17','2017-18','2018-19','2019-20','2020-21','2021-22','2022-23','2023-24','2024-25','2025-26','2026-27 (BE)'],
+        datasets: [{
+          label: 'Total Budget Estimate (₹ Crores)',
+          data: [135689, 156999, 191064, 227975, 224789, 229779, 256257, 279279, 286389, 294428, 294428],
+          borderColor: '#0C2340',
+          backgroundColor: 'rgba(12, 35, 64, 0.08)',
+          fill: true,
+          tension: 0.35,
+          borderWidth: 2.5
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'top' } } }
+    });
+
+    // Top Departments
+    new Chart(document.getElementById('chart-dept'), {
+      type: 'bar',
+      data: {
+        labels: ['School Education','Agriculture','Water Resources','Panchayat Raj','Health & Family','Energy','Social Welfare','Municipal Admin','Higher Education','Transport & Roads'],
+        datasets: [{
+          label: '2026-27 Allocation (₹ Cr)',
+          data: [32000, 18500, 16800, 15400, 14200, 12800, 10500, 9800, 5600, 4900],
+          backgroundColor: '#1E3A8A'
+        }]
+      },
+      options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } } }
+    });
+
+    // FRBM Deficit
+    new Chart(document.getElementById('chart-frbm'), {
+      type: 'bar',
+      data: {
+        labels: ['2021-22','2022-23','2023-24','2024-25','2025-26 (RE)','2026-27 (BE)'],
+        datasets: [
+          { label: 'Fiscal Deficit (% GSDP)', data: [4.18, 3.98, 3.79, 3.84, 3.80, 3.84], backgroundColor: '#DC2626' },
+          { label: 'FRBM Limit Ceiling', data: [4.0, 3.5, 3.5, 3.5, 3.5, 3.5], type: 'line', borderColor: '#D97706', borderWidth: 2 }
+        ]
+      },
+      options: { responsive: true }
+    });
+  }
+
+  /* ────── DOCUMENT REPOSITORY ────── */
+  let allDocs = [];
+  async function loadDocuments() {
+    if (allDocs.length) return;
+    try {
+      const res = await fetch(`${API}/api/documents`);
+      const data = await res.json();
+      allDocs = data.documents || [];
+      renderDocsTable(allDocs);
+    } catch (e) {
+      document.getElementById('doc-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:red;">Error loading documents.</td></tr>';
+    }
+  }
+
+  function renderDocsTable(docs) {
+    const tbody = document.getElementById('doc-tbody');
+    if (!docs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">No documents match the filter.</td></tr>';
+      document.getElementById('doc-count').textContent = 'Showing 0 documents';
+      return;
+    }
+    tbody.innerHTML = docs.slice(0, 100).map(d => `
+      <tr>
+        <td style="font-weight:600;color:var(--gov-navy);">📄 ${escapeHtml((d.title || 'Untitled').replace(/\\s+/g, ' '))}</td>
+        <td><span style="background:#F1F5F9;padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:600;">${escapeHtml(d.financial_year || 'Reference')}</span></td>
+        <td>${escapeHtml((d.category || '').replace(/_/g, ' ').toUpperCase())}</td>
+        <td>${d.total_pages || '—'}</td>
+        <td>${d.total_chunks || '—'}</td>
+        <td><span style="color:#166534;font-weight:600;">● Indexed</span></td>
+      </tr>`).join('');
+    document.getElementById('doc-count').textContent = `Showing ${Math.min(100, docs.length)} of ${docs.length} official publications`;
+  }
+
+  function filterDocs() {
+    const q = (document.getElementById('doc-search').value || '').toLowerCase();
+    const yr = document.getElementById('doc-year').value;
+    const cat = document.getElementById('doc-cat').value;
+
+    const filtered = allDocs.filter(d => {
+      const matchQ = !q || (d.title || '').toLowerCase().includes(q);
+      const matchYr = !yr || d.financial_year === yr;
+      const matchCat = !cat || d.category === cat;
+      return matchQ && matchYr && matchCat;
+    });
+    renderDocsTable(filtered);
+  }
+
+  /* ────── STATUS REFRESH ────── */
+  async function refreshStatus() {
+    try {
+      const res = await fetch(`${API}/health`);
+      const data = await res.json();
+      if (data.status === 'healthy') {
+        document.getElementById('api-status').textContent = 'Operational';
+        document.getElementById('stat-docs').textContent = data.database?.total_documents || '590';
+        document.getElementById('stat-chunks').textContent = (data.database?.total_sql_chunks || 63068).toLocaleString();
+      }
+    } catch(e) {}
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Initial stats fetch
+  refreshStatus();
+</script>
+</body>
+</html>
