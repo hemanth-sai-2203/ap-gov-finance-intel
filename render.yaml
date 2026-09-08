@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ap-gov-finance-intel
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: WEAVIATE_INDEX_NAME
+        value: GovIntelDocument
+      - key: EMBEDDING_MODEL_NAME
+        value: BAAI/bge-base-en-v1.5
