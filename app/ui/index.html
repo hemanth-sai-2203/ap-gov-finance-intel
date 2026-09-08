@@ -1212,6 +1212,11 @@
         })
       });
 
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Server returned HTTP ${res.status}: ${res.statusText}`);
+      }
+
       const data = await res.json();
       document.getElementById(typingId)?.remove();
 
@@ -1259,8 +1264,8 @@
         <div class="message ai">
           <div class="msg-avatar ai">🏛️</div>
           <div class="msg-bubble" style="background:#FEF2F2;border-left-color:#DC2626;color:#991B1B;">
-            ⚠️ <strong>Backend Connection Notice:</strong> Could not connect to API at <code>${API}</code>.<br/>
-            Please ensure the FastAPI service is running.
+            ⚠️ <strong>Inquiry Notice:</strong> ${escapeHtml(err.message || 'Unable to process query at this moment.')}<br/>
+            <small style="color:#7F1D1D;margin-top:4px;display:block;">If the free-tier service was waking from sleep, please resubmit in a few seconds.</small>
           </div>
         </div>`;
       msgs.scrollTop = msgs.scrollHeight;
