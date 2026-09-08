@@ -45,37 +45,11 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    On Startup:
-    1. Warm up the Cross-Encoder reranker in memory.
-    2. Verify Weaviate Cloud and Supabase connections.
+    Non-blocking ASGI startup.
+    Ensures Uvicorn binds to port 10000 in <1s for Render healthcheck.
+    Heavy models and connections are verified lazily or asynchronously.
     """
-    logger.info("Initializing AP Government Finance Intelligence API...")
-    try:
-        # Warm up Cross-Encoder reranker
-        get_reranker()
-        logger.info("[OK] Cross-Encoder reranker warmed up.")
-    except Exception as e:
-        logger.warning(f"Reranker warmup note: {e}")
-
-    try:
-        # Test Weaviate connection
-        client = get_weaviate_client(max_retries=1, retry_delay=0.5)
-        if client.is_ready():
-            logger.info("[OK] Weaviate Cloud vector database connected.")
-        client.close()
-    except Exception as e:
-        logger.warning(f"Vector database note: {e}")
-
-    try:
-        # Test Supabase connection
-        db = SessionLocal()
-        doc_count = db.query(DocumentModel).count()
-        chunk_count = db.query(DocumentChunkModel).count()
-        db.close()
-        logger.info(f"[OK] Supabase PostgreSQL connected ({doc_count} documents, {chunk_count} chunk metadata rows).")
-    except Exception as e:
-        logger.warning(f"Database connection note: {e}")
-
+    logger.info("Initializing AP Government Finance Intelligence API (Fast Startup)...")
     yield
     logger.info("Shutting down AP Government Finance Intelligence API.")
 

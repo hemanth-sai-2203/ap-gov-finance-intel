@@ -16,19 +16,24 @@ DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 _reranker_instance: Optional[CrossEncoder] = None
 
 
-def get_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> CrossEncoder:
+def get_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> Optional[CrossEncoder]:
     """
     Singleton factory for CrossEncoder reranker.
-    Loads once on demand and reuses across queries.
+    Loads on demand and reuses across queries.
+    Gracefully falls back to None if model download fails or memory is tight.
     """
     global _reranker_instance
     if _reranker_instance is None:
-        logger.info(f"Loading cross-encoder reranker: {model_name} (CPU execution)...")
         try:
-            _reranker_instance = CrossEncoder(model_name, max_length=512, local_files_only=True)
-        except Exception:
-            _reranker_instance = CrossEncoder(model_name, max_length=512)
-        logger.info(f"[OK] Cross-encoder reranker '{model_name}' loaded successfully.")
+            logger.info(f"Loading cross-encoder reranker: {model_name} (CPU execution)...")
+            try:
+                _reranker_instance = CrossEncoder(model_name, max_length=512, local_files_only=True)
+            except Exception:
+                _reranker_instance = CrossEncoder(model_name, max_length=512)
+            logger.info(f"[OK] Cross-encoder reranker '{model_name}' loaded successfully.")
+        except Exception as e:
+            logger.warning(f"Could not load CrossEncoder model ({e}). Using fallback ranking.")
+            return None
     return _reranker_instance
 
 
@@ -40,15 +45,7 @@ def rerank_candidates(
 ) -> List[Dict[str, Any]]:
     """
     Reranks a list of candidate chunk dictionaries against the user query.
-
-    Args:
-        query: User search query
-        candidates: List of candidate chunk dicts from vector/bm25/hybrid search
-        top_k: Number of highest-ranked results to return
-        content_key: The dictionary key containing the text content
-
-    Returns:
-        Top-k candidate dicts sorted by calibrated rerank_score descending.
+    Falls back gracefully to original candidate ranking if model is unavailable.
     """
     if not candidates:
         return []
@@ -58,13 +55,13 @@ def rerank_candidates(
         candidates[0]["rerank_score"] = 1.0
         return candidates
 
-    reranker = get_reranker()
-
-    # Form (query, passage) pairs
-    pairs = [(query, c.get(content_key, "")) for c in candidates]
-
     try:
-        # Cross-encoder output scores (logits / relevance scores)
+        reranker = get_reranker()
+        if reranker is None:
+            return candidates[:top_k]
+
+        # Form (query, passage) pairs
+        pairs = [(query, c.get(content_key, "")) for c in candidates]
         scores = reranker.predict(pairs)
 
         for i, candidate in enumerate(candidates):
@@ -76,7 +73,6 @@ def rerank_candidates(
 
     except Exception as e:
         logger.error(f"Error during cross-encoder reranking: {e}")
-        # Fallback to original ordering if reranking fails
         return candidates[:top_k]
 
 
