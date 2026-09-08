@@ -1,8 +1,6 @@
 import os
-import torch
 import logging
-from typing import List
-from sentence_transformers import SentenceTransformer
+from typing import List, Any, Optional
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -12,15 +10,18 @@ DEFAULT_MODEL_NAME = settings.EMBEDDING_MODEL_NAME or "BAAI/bge-base-en-v1.5"
 
 _model_instance = None
 
-def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> SentenceTransformer:
+def get_embedding_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     """
-    Direct SentenceTransformer singleton with CPU multi-threading (8 threads).
-    Runs at maximum raw C++/PyTorch SIMD throughput with batch_size=128.
+    Direct SentenceTransformer singleton with CPU multi-threading.
+    Loads lazily on first embedding request to prevent server startup blocking.
     """
     global _model_instance
     if _model_instance is None:
-        torch.set_num_threads(8)
-        logger.info(f"Loading embedding model: {model_name} (CPU multi-threaded, batch_size=128)")
+        import torch
+        from sentence_transformers import SentenceTransformer
+        num_threads = min(4, os.cpu_count() or 1)
+        torch.set_num_threads(num_threads)
+        logger.info(f"Loading embedding model: {model_name} (CPU threads={num_threads})...")
         try:
             _model_instance = SentenceTransformer(model_name, device="cpu", local_files_only=True)
         except Exception:

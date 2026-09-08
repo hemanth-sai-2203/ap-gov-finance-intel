@@ -8,23 +8,23 @@ Significantly boosts Precision@K over bi-encoder similarity alone.
 """
 import logging
 from typing import List, Dict, Any, Optional
-from sentence_transformers import CrossEncoder
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-_reranker_instance: Optional[CrossEncoder] = None
+_reranker_instance: Optional[Any] = None
 
 
-def get_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> Optional[CrossEncoder]:
+def get_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> Optional[Any]:
     """
     Singleton factory for CrossEncoder reranker.
-    Loads on demand and reuses across queries.
+    Loads lazily on demand and reuses across queries.
     Gracefully falls back to None if model download fails or memory is tight.
     """
     global _reranker_instance
     if _reranker_instance is None:
         try:
+            from sentence_transformers import CrossEncoder
             logger.info(f"Loading cross-encoder reranker: {model_name} (CPU execution)...")
             try:
                 _reranker_instance = CrossEncoder(model_name, max_length=512, local_files_only=True)
