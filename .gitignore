@@ -1,0 +1,80 @@
+# ==============================================================================
+# Git Ignore Configuration - AP Government Finance Intelligence Platform
+# ==============================================================================
+
+# Environment variables & secrets (CRITICAL)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# C extensions
+*.obj
+*.o
+*.pyd
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter & IDEs
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Large raw PDF data files & document caches (downloaded on demand)
+data/raw_pdfs/
+data/raw_documents/
+*.pdf
+!tests/sample_ap_budget_2026_27.pdf
+!AP Govt AI Platform Architecture.pdf
+
+# Logs and databases
+*.log
+*.sqlite
+*.sqlite3
+*.db
+local_weaviate/
