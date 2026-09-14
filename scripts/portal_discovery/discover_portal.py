@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -15,3 +17,4 @@ for a in soup.find_all("a", href=True):
     if full not in seen and not href.startswith("#") and "javascript" not in href:
         seen.add(full)
         print(f"{text[:40]:<42} -> {full}")
+

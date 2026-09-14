@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import httpx
 import urllib3
 from bs4 import BeautifulSoup
@@ -84,3 +86,4 @@ if missing_from_db:
         print(f"{idx}. [{meta['section']}] {meta['name']} -> {purl}", flush=True)
 else:
     print("\nAll English PDFs across the entire portal are included in the pipeline!", flush=True)
+

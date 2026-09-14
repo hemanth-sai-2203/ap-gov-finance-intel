@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import argparse
 import logging
 import sys
@@ -238,3 +240,4 @@ if __name__ == "__main__":
         chunk_overlap=args.chunk_overlap,
         force_reprocess=args.force
     )
+

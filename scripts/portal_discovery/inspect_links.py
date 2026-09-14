@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from app.ingestion.scraper import scrape_pdf_links, CATEGORY_PAGES
 
 for cat in CATEGORY_PAGES.keys():
@@ -6,3 +8,4 @@ for cat in CATEGORY_PAGES.keys():
     for d in docs:
         print(f"  - [{d.get('financial_year')}] {d.get('title')}")
         print(f"    URL: {d.get('source_url')}")
+

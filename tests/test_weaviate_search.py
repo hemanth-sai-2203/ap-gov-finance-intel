@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import os
 from dotenv import load_dotenv
 import weaviate
@@ -42,3 +44,4 @@ def test_weaviate_search():
 
 if __name__ == "__main__":
     test_weaviate_search()
+

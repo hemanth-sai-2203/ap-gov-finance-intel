@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import os
 from app.db.session import SessionLocal
 from app.db.models import FinancialRecordModel
@@ -46,3 +48,4 @@ db.close()
 print("\n" + "=" * 70)
 print("[SQL DATA EXTRACTION & VERIFICATION COMPLETE!]")
 print("=" * 70 + "\n")
+

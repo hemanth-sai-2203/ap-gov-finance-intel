@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -48,3 +50,4 @@ for title, url in deep_pages:
 print(f"\n==========================================")
 print(f"TOTAL ADDITIONAL ENGLISH PDFS DISCOVERED: {total_new_pdfs}")
 print(f"==========================================\n")
+

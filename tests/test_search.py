@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 """
 Multi-domain Search Test across all ingested categories:
 1. Policy / Rules from Budget Manual
@@ -62,3 +64,4 @@ finally:
 print("=" * 70)
 print("[OK] All domain searches verified successfully!")
 print("=" * 70 + "\n")
+

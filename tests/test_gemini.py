@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import os
 from dotenv import load_dotenv
 
@@ -29,3 +31,4 @@ try:
     print(res2.text)
 except Exception as e:
     print(f"\n[NOTICE] google-genai error: {e}")
+

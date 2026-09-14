@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 """
 Exhaustive AP Finance Portal PDF Audit Script.
 Recursively crawls all navigation menus, archives, and subpages on apfinance.gov.in
@@ -150,3 +152,4 @@ def run_deep_audit():
 
 if __name__ == "__main__":
     run_deep_audit()
+

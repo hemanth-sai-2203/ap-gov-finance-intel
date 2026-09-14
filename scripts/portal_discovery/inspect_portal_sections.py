@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import httpx
 import urllib3
 from bs4 import BeautifulSoup
@@ -74,3 +76,4 @@ with httpx.Client(headers=headers, verify=False, timeout=12.0, follow_redirects=
             print(f"[{name}] Error: {e}", flush=True)
 
 print(f"\nTotal English PDF links across all direct portal sections: {total_pdfs}", flush=True)
+
