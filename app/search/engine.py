@@ -24,7 +24,8 @@ from app.search.sql_engine import (
     get_department_allocation,
     get_total_budget_by_year,
     compare_department_across_years,
-    get_top_departments_by_allocation
+    get_top_departments_by_allocation,
+    get_document_catalog
 )
 
 logger = logging.getLogger(__name__)
@@ -65,8 +66,18 @@ class EvidenceBundle:
         """
         sections = []
 
-        # 1. Structured SQL context (if any)
-        if self.sql_records:
+        # 1. Catalog / Metadata records
+        if self.query_type == "catalog" and self.sql_records:
+            sections.append("=== OFFICIAL AP GOVERNMENT DOCUMENT CATALOG ===")
+            for r in self.sql_records[:30]:
+                title = r.get("title", "Document")
+                cat = r.get("category", "N/A")
+                yr = r.get("financial_year", "N/A")
+                pages = r.get("total_pages", "N/A")
+                sections.append(f"• Document: {title} | Category: {cat} | Financial Year: {yr} | Pages: {pages}")
+
+        # 2. Structured SQL context (financial data)
+        elif self.sql_records:
             sections.append("=== STRUCTURED FINANCIAL DATA (VERIFIED SQL) ===")
             for r in self.sql_records:
                 yr = r.get("financial_year", "N/A")
@@ -80,7 +91,7 @@ class EvidenceBundle:
             for k, v in self.sql_aggregations.items():
                 sections.append(f"{k}: {v}")
 
-        # 2. Text Passages from Weaviate Reranker
+        # 3. Text Passages from Weaviate Reranker
         if self.passages:
             sections.append("\n=== OFFICIAL GOVERNMENT DOCUMENT CITATIONS ===")
             for p in self.passages[:max_passages]:
@@ -121,23 +132,24 @@ def retrieve_evidence(
 
     evidence = EvidenceBundle(
         query=query,
-        query_type=q_type.value,
+        query_type=q_type.value if hasattr(q_type, 'value') else str(q_type),
         routing_metadata=routing
     )
 
-    client = None
     try:
-        # 2. Execute SQL retrieval if numerical lookup or hybrid
+        # 2. Execute SQL retrieval if catalog, numerical lookup or hybrid
         if routing["requires_sql"]:
             try:
-                if q_type == QueryType.COMPARISON and dept:
+                if q_type == QueryType.CATALOG:
+                    evidence.sql_records = get_document_catalog(category=category, financial_year=year, limit=40)
+                elif q_type == QueryType.COMPARISON and dept:
                     evidence.sql_records = compare_department_across_years(dept)
                 elif dept:
                     evidence.sql_records = get_department_allocation(dept, financial_year=year)
                 elif year and "total" in query.lower():
                     evidence.sql_aggregations = get_total_budget_by_year(year)
             except Exception as e:
-                logger.warning(f"SQL execution encountered notice (table may be unpopulated): {e}")
+                logger.warning(f"SQL execution encountered notice: {e}")
 
         # 3. Execute Hybrid / Vector retrieval if textual narrative or hybrid
         if routing["requires_vector"]:
@@ -151,15 +163,12 @@ def retrieve_evidence(
                     use_reranker=use_reranker
                 )
             except Exception as e:
-                logger.warning(f"Hybrid search invocation failed ({e}), calling PostgreSQL engine directly...")
-                from app.search.postgres_search import postgres_hybrid_search
-                raw_results = postgres_hybrid_search(
-                    query=query,
-                    top_k=top_k,
-                    financial_year=year,
-                    category=category,
-                    use_reranker=use_reranker
-                )
+                logger.warning(f"Hybrid search invocation failed ({e}), falling back to BM25 search...")
+                try:
+                    raw_results = bm25_search(query=query, top_k=top_k, financial_year=year, category=category)
+                except Exception as bm_err:
+                    logger.error(f"BM25 fallback search also failed: {bm_err}")
+                    raw_results = []
 
             # Convert to structured RetrievedPassage dataclass
             for rank, r in enumerate(raw_results, 1):

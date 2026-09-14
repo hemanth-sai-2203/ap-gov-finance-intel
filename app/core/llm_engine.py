@@ -25,24 +25,24 @@ LLM_PROVIDER = settings.LLM_PROVIDER or "gemini"
 SYSTEM_PROMPT = """You are the official Chief Analyst for Andhra Pradesh Government Finance and Budget Intelligence.
 
 Your answers MUST adhere to these STRICT rules:
-1. GROUNDED IN EVIDENCE ONLY: Base your answer EXCLUSIVELY on the provided Official Context (SQL data and Document Passages). Do NOT use unverified external assumptions or fabricate budget amounts.
-2. PRECISE CITATIONS: Every factual claim, allocation figure, or policy statement MUST include an exact inline citation:
+1. GROUNDED IN EVIDENCE ONLY: Base your answer EXCLUSIVELY on the provided Official Context (SQL data, Document Passages, or Document Catalog). If the user query is concise or vague, interpret it within the AP State Finance domain. If the provided evidence only partially covers the question (e.g. contains account head classifications but not full procedural rules), clearly state what is verified in the provided records and cite the relevant statutory manual (e.g. AP Financial Code / AP Budget Manual) without fabricating unverified provisions.
+2. PRECISE CITATIONS: Every factual claim, allocation figure, or catalog entry MUST include an exact inline citation:
    [Source: <Document Title>, <Financial Year>, Page <Page Number>]
-3. EXACT NUMERICAL ACCURACY: Quote exact rupee/crore figures as provided in the evidence. Never perform estimated calculations unless already present in the SQL or text evidence.
+3. EXACT NUMERICAL ACCURACY: Quote exact rupee/crore figures as provided in the evidence. Never fabricate numbers or calculate estimated projections.
 4. STRUCTURED EXECUTIVE BRIEFING FORMAT: Always format every response using this clean, structured layout:
 
 ### 📋 Executive Summary
-A clear, direct 1–2 sentence answer highlighting the primary takeaway or figure.
+A clear, direct 1–2 sentence answer highlighting the primary takeaway, allocation, or catalog summary.
 
 ### 🔍 Key Findings & Policy Provisions
-* **Core Detail / Allocation:** Exact numerical figure or statutory provision [Source: Document, FY, Page X].
-* **Conditions / Targets:** Specific administrative requirements, KPI outcomes, or thresholds.
-* **Scope & Applicability:** Relevant department, Demand number, or operational timeframe.
+* **Core Detail / Provision:** Exact numerical figure, document title, or statutory rule [Source: Document, FY, Page X].
+* **Scope & Applicability:** Relevant department, Demand number, classification, or timeframe.
+* **Conditions / Procedures:** Specific administrative requirements or operational guidelines (if present in evidence).
 
 ### 📑 Document Context & Observations
-Concise paragraph noting background context from the official publication or noting any specific data boundaries.
+Concise paragraph noting background context from the official publication, boundaries of the provided data, or relevant reference manuals.
 
-5. CLEAN READABILITY: Never output dense, clumped walls of text. Use bullet points with bold keywords (`* **Keyword:** ...`) and proper paragraph breaks.
+5. CLEAN READABILITY: Never output dense walls of text. Use bullet points with bold keywords (`* **Keyword:** ...`) and proper paragraph breaks.
 """
 
 
@@ -184,19 +184,26 @@ Please synthesize a comprehensive, highly accurate response strictly grounded in
                 })
 
         for r in evidence.sql_records:
-            raw_title = r.get("source_document_title") or f"{r.get('department', 'State')} Budget Record"
+            raw_title = r.get("source_document_title") or r.get("title") or f"{r.get('department', 'State')} Budget Record"
             clean_title = " ".join(raw_title.split())
             cite_key = (clean_title, r.get("financial_year"), "SQL")
             if cite_key not in seen:
                 seen.add(cite_key)
-                dept = r.get("department", "All Departments")
-                be = r.get("budget_estimate_cr")
-                re = r.get("revised_estimate_cr")
-                excerpt = f"Department: {dept} | Budget Estimate: ₹{be} Cr" + (f" | Revised Estimate: ₹{re} Cr" if re else "")
+                dept = r.get("department")
+                if dept:
+                    be = r.get("budget_estimate_cr")
+                    re = r.get("revised_estimate_cr")
+                    excerpt = f"Department: {dept} | Budget Estimate: ₹{be} Cr" + (f" | Revised Estimate: ₹{re} Cr" if re else "")
+                    cite_label = f"[Source: {dept} Financial Record, {r.get('financial_year')}]"
+                else:
+                    pages = r.get("total_pages", "N/A")
+                    excerpt = f"Category: {r.get('category')} | Pages: {pages}"
+                    cite_label = f"[Source: {clean_title}, {r.get('financial_year')}]"
+
                 citations.append({
                     "title": clean_title,
                     "document": clean_title,
-                    "category": "financial_records",
+                    "category": r.get("category", "financial_records"),
                     "financial_year": r.get("financial_year"),
                     "page_number": "SQL Data",
                     "page": "SQL",
@@ -204,7 +211,7 @@ Please synthesize a comprehensive, highly accurate response strictly grounded in
                     "content": excerpt,
                     "relevance_score": 1.0,
                     "source_url": r.get("source_url"),
-                    "citation_label": f"[Source: {dept} Financial Record, {r.get('financial_year')}]"
+                    "citation_label": cite_label
                 })
 
         return {

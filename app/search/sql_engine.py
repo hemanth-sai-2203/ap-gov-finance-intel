@@ -180,3 +180,44 @@ def compare_department_across_years(
     finally:
         if close_db:
             db.close()
+
+
+def get_document_catalog(
+    category: Optional[str] = None,
+    financial_year: Optional[str] = None,
+    limit: int = 50,
+    db: Optional[Session] = None
+) -> List[Dict[str, Any]]:
+    """
+    Returns verified document catalog from Postgres SQL metadata.
+    Handles meta queries ('what documents do you have?', 'list all budget speeches').
+    """
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        query = db.query(DocumentModel).filter(DocumentModel.status.in_(["processed", "downloaded"]))
+        if category:
+            query = query.filter(DocumentModel.category == category)
+        if financial_year:
+            query = query.filter(DocumentModel.financial_year == financial_year)
+
+        docs = query.order_by(DocumentModel.financial_year.desc(), DocumentModel.title.asc()).limit(limit).all()
+        return [
+            {
+                "document_id": d.id,
+                "title": d.title,
+                "category": d.category,
+                "financial_year": d.financial_year or "General",
+                "total_pages": d.total_pages,
+                "source_url": d.source_url,
+                "retrieval_method": "sql_catalog"
+            }
+            for d in docs
+        ]
+    finally:
+        if close_db:
+            db.close()
+

@@ -25,7 +25,17 @@ class QueryType(str, Enum):
     RAG = "rag"                 # Unstructured semantic / policy text query
     HYBRID = "hybrid"           # Both SQL numbers and RAG narrative needed
     COMPARISON = "comparison"   # Multi-year trend or comparison analysis
+    CATALOG = "catalog"         # Meta / document listing query ("list all budget speeches", "what documents exist")
 
+
+# Catalog / Meta intent keywords
+CATALOG_PATTERNS = [
+    r'\blist\s+(all\s+)?(the\s+)?([a-z\-]+\s+)*(documents?|speeches?|manuals?|circulars?|files?|years?|departments?|publications?)\b',
+    r'\bwhat\s+([a-z\-]+\s+)*(documents?|speeches?|manuals?|circulars?|files?|years?|publications?)\s+(do\s+you\s+have|are\s+available|exist|are\s+there|in\s+the\s+database)\b',
+    r'\bshow\s+(all\s+)?(the\s+)?([a-z\-]+\s+)*(documents?|speeches?|manuals?|circulars?|publications?)\b',
+    r'\bavailable\s+([a-z\-]+\s+)*(documents?|speeches?|manuals?|circulars?|data|publications?)\b',
+    r'\bwhich\s+([a-z\-]+\s+)*(years?|documents?|speeches?)\s+(are\s+available|do\s+you\s+have)\b'
+]
 
 # Financial comparison / trend keywords
 COMPARISON_KEYWORDS = [
@@ -40,7 +50,8 @@ EXPLANATORY_KEYWORDS = [
     "why", "explain", "describe", "priorities", "priority", "focus areas",
     "initiative", "initiatives", "policy", "impact", "benefits", "outcomes",
     "vision", "procedure", "guidelines", "rules", "sanction", "powers",
-    "reappropriation", "circular", "process", "eligibility", "objective", "objectives"
+    "reappropriation", "re-appropriation", "circular", "process", "eligibility",
+    "objective", "objectives", "frbm", "compliance", "fiscal deficit"
 ]
 
 # Numerical lookup patterns (regex)
@@ -102,17 +113,15 @@ CATEGORY_HINTS = {
     "rules": "finance_manual",
     "reappropriation": "finance_manual",
     "sanction": "finance_manual",
-    "circular": "circulars_memos",
-    "circulars": "circulars_memos",
-    "guideline": "finance_publication",
-    "guidelines": "finance_publication",
-    "cbro": "circulars_memos",
-    "memo": "circulars_memos",
+    "circular": "guidelines_circulars",
+    "circulars": "guidelines_circulars",
+    "guideline": "guidelines_circulars",
+    "guidelines": "guidelines_circulars",
+    "cbro": "guidelines_circulars",
+    "metering": "guidelines_circulars",
+    "memo": "guidelines_circulars",
     "speech": "budget_speech",
-    "minister": "budget_speech",
-    "frbm": "frbm_report",
-    "prc": "prc_report",
-    "survey": "socio_economic_survey"
+    "minister": "budget_speech"
 }
 
 
@@ -148,33 +157,36 @@ def extract_category(query: str) -> Optional[str]:
 def classify_query(query: str) -> QueryType:
     """
     Rule-based query classification.
-    Returns: QueryType (SQL | RAG | HYBRID | COMPARISON)
+    Returns: QueryType (CATALOG | SQL | RAG | HYBRID | COMPARISON)
     """
     q_lower = query.lower().strip()
+
+    # 1. Catalog / Meta intent (e.g. "What budget speeches do you have?")
+    if any(re.search(p, q_lower) for p in CATALOG_PATTERNS):
+        return QueryType.CATALOG
 
     years = extract_financial_years(query)
     has_numerical = any(re.search(p, q_lower) for p in NUMERICAL_PATTERNS)
     has_comparison = any(kw in q_lower for kw in COMPARISON_KEYWORDS)
     has_explanatory = any(kw in q_lower for kw in EXPLANATORY_KEYWORDS)
-    dept = extract_department(query)
 
-    # 1. Multi-year comparison (e.g. "Compare 2019 and 2026" or comparison keywords with year)
+    # 2. Multi-year comparison (e.g. "Compare 2019 and 2026" or comparison keywords with year)
     if has_comparison or (len(years) > 1 and has_numerical):
         return QueryType.COMPARISON
 
-    # 2. Hybrid (asks for both numbers and qualitative explanation)
+    # 3. Hybrid (asks for both numbers and qualitative explanation)
     if has_numerical and has_explanatory:
         return QueryType.HYBRID
 
-    # 3. SQL (clean numerical question with department or year)
+    # 4. SQL (clean numerical question with department or year)
     if has_numerical and not has_explanatory:
         return QueryType.SQL
 
-    # 4. Pure narrative / policy / guidelines / rules
+    # 5. Pure narrative / policy / guidelines / rules
     if has_explanatory and not has_numerical:
         return QueryType.RAG
 
-    # 5. Default fallback to HYBRID (retrieves both tabular stats and semantic text)
+    # 6. Default fallback to HYBRID (retrieves both tabular stats and semantic text)
     return QueryType.HYBRID
 
 
@@ -195,14 +207,18 @@ def expand_query(query: str) -> List[str]:
         "medical": ["Health, Medical & Family Welfare Department"],
         "hospital": ["Health & Family Welfare healthcare infrastructure"],
         "roads": ["Transport, Roads & Buildings Department"],
-        "cbro": ["Comprehensive Budget Release Order (CBRO) guidelines"],
+        "cbro": ["Comprehensive Budget Release Order (CBRO) guidelines quarterly regulation"],
         "manual": ["A.P. Budget Manual rules and procedures"],
-        "reappropriation": ["re-appropriation of budget funds sanction powers"],
-        "sanction": ["powers of financial sanction Heads of Departments"],
+        "reappropriation": ["re-appropriation of funds transfer of savings sanction powers AP Financial Code"],
+        "re-appropriation": ["re-appropriation of budget funds transfer of savings AP Financial Code Article"],
+        "sanction": ["powers of financial sanction Heads of Departments delegating authority"],
         "pension": ["Pay Revision Commission (PRC) pension and retirement benefits"],
         "welfare": ["Social Welfare", "Scheduled Castes SC component", "BC component"],
         "housing": ["Housing Department PM Awas Yojana"],
-        "metering": ["Prepaid Smart Metering Government Departments billing"]
+        "metering": ["Prepaid Smart Metering Government Departments billing"],
+        "frbm": ["Fiscal Responsibility and Budget Management Act fiscal deficit targets revenue deficit"],
+        "contingency": ["Andhra Pradesh Contingency Fund advances rules"],
+        "speech": ["Budget Speech Finance Minister Annual Financial Statement"]
     }
 
     terms_added = []
@@ -213,7 +229,6 @@ def expand_query(query: str) -> List[str]:
                     terms_added.append(term)
 
     if terms_added:
-        # Create an enriched query variation
         augmented_query = f"{query} ({', '.join(terms_added[:3])})"
         expanded.append(augmented_query)
 
@@ -239,8 +254,8 @@ def route_query(query: str) -> Dict[str, Any]:
         "all_years": years,
         "department": department,
         "category_filter": category,
-        "requires_sql": q_type in [QueryType.SQL, QueryType.HYBRID, QueryType.COMPARISON],
-        "requires_vector": True  # Always active as rich knowledge backbone
+        "requires_sql": q_type in [QueryType.SQL, QueryType.HYBRID, QueryType.COMPARISON, QueryType.CATALOG],
+        "requires_vector": q_type != QueryType.CATALOG  # Catalog hits SQL metadata directly
     }
 
     logger.info(
