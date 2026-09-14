@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     
     EMBEDDING_MODEL_NAME: str = "BAAI/bge-base-en-v1.5"
     EMBEDDING_DIMENSION: int = 768
+    HF_TOKEN: Optional[str] = None
+    HUGGINGFACE_API_KEY: Optional[str] = None
+    USE_LOCAL_EMBEDDER: bool = False
+    USE_LOCAL_RERANKER: bool = False
     
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None

@@ -16,3 +16,7 @@ services:
         value: GovIntelDocument
       - key: EMBEDDING_MODEL_NAME
         value: BAAI/bge-base-en-v1.5
+      - key: USE_LOCAL_EMBEDDER
+        value: "false"
+      - key: USE_LOCAL_RERANKER
+        value: "false"

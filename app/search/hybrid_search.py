@@ -199,9 +199,23 @@ def hybrid_search(
 
         return final_results
 
+    except Exception as e:
+        logger.warning(f"Weaviate hybrid search unavailable ({e}). Seamlessly engaging PostgreSQL neural search fallback...")
+        from app.search.postgres_search import postgres_hybrid_search
+        return postgres_hybrid_search(
+            query=query,
+            top_k=top_k,
+            candidate_pool_size=candidate_pool_size,
+            financial_year=financial_year,
+            category=category,
+            use_reranker=use_reranker
+        )
     finally:
         if close_client and client:
-            client.close()
+            try:
+                client.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

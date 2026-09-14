@@ -142,43 +142,48 @@ def retrieve_evidence(
         # 3. Execute Hybrid / Vector retrieval if textual narrative or hybrid
         if routing["requires_vector"]:
             try:
-                client = get_weaviate_client()
                 raw_results = hybrid_search(
                     query=query,
                     top_k=top_k,
                     alpha=alpha,
                     financial_year=year,
                     category=category,
-                    use_reranker=use_reranker,
-                    client=client
+                    use_reranker=use_reranker
+                )
+            except Exception as e:
+                logger.warning(f"Hybrid search invocation failed ({e}), calling PostgreSQL engine directly...")
+                from app.search.postgres_search import postgres_hybrid_search
+                raw_results = postgres_hybrid_search(
+                    query=query,
+                    top_k=top_k,
+                    financial_year=year,
+                    category=category,
+                    use_reranker=use_reranker
                 )
 
-                # Convert to structured RetrievedPassage dataclass
-                for rank, r in enumerate(raw_results, 1):
-                    clean_t = " ".join((r.get("title") or "Official AP Government Document").split())
-                    p = RetrievedPassage(
-                        rank=rank,
-                        content=r.get("content", ""),
-                        title=clean_t,
-                        category=r.get("category", "uncategorized"),
-                        financial_year=r.get("financial_year", "N/A"),
-                        page_number=int(r.get("page_number") or 1),
-                        weaviate_id=r.get("weaviate_id", ""),
-                        document_id=r.get("document_id"),
-                        rerank_score=float(r.get("rerank_score", r.get("score", 0.0))),
-                        retrieval_method=r.get("retrieval_method", "hybrid"),
-                        source_url=r.get("source_url")
-                    )
-                    evidence.passages.append(p)
-            except Exception as e:
-                logger.error(f"Vector search retrieval notice: {e}")
+            # Convert to structured RetrievedPassage dataclass
+            for rank, r in enumerate(raw_results, 1):
+                clean_t = " ".join((r.get("title") or "Official AP Government Document").split())
+                p = RetrievedPassage(
+                    rank=rank,
+                    content=r.get("content", ""),
+                    title=clean_t,
+                    category=r.get("category", "uncategorized"),
+                    financial_year=r.get("financial_year", "N/A"),
+                    page_number=int(r.get("page_number") or 1),
+                    weaviate_id=r.get("weaviate_id", ""),
+                    document_id=r.get("document_id"),
+                    rerank_score=float(r.get("rerank_score", r.get("score", 0.0))),
+                    retrieval_method=r.get("retrieval_method", "hybrid"),
+                    source_url=r.get("source_url")
+                )
+                evidence.passages.append(p)
 
         evidence.total_evidence_count = len(evidence.passages) + len(evidence.sql_records)
         return evidence
 
     finally:
-        if client:
-            client.close()
+        pass
 
 
 if __name__ == "__main__":

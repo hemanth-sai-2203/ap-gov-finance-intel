@@ -9,6 +9,8 @@ Significantly boosts Precision@K over bi-encoder similarity alone.
 import logging
 from typing import List, Dict, Any, Optional
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -18,10 +20,13 @@ _reranker_instance: Optional[Any] = None
 def get_reranker(model_name: str = DEFAULT_RERANKER_MODEL) -> Optional[Any]:
     """
     Singleton factory for CrossEncoder reranker.
-    Loads lazily on demand and reuses across queries.
-    Gracefully falls back to None if model download fails or memory is tight.
+    Loads lazily on demand only if USE_LOCAL_RERANKER is True.
+    Gracefully falls back to None if model download fails, disabled, or memory is tight.
     """
     global _reranker_instance
+    if not settings.USE_LOCAL_RERANKER:
+        return None
+
     if _reranker_instance is None:
         try:
             from sentence_transformers import CrossEncoder
