@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     LLM_PROVIDER: str = "gemini"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
