@@ -71,6 +71,6 @@ def run_query(
         "routing_metadata": evidence.routing_metadata,
         "retrieved_passages_count": len(evidence.passages),
         "sql_records_count": len(evidence.sql_records),
-        "model_used": synthesis_result.get("model_used", "gemini-2.5-flash"),
-        "engine": "Hybrid BM25 + 768-dim Vector + Cross-Encoder Reranker + Gemini 2.5 Flash"
+        "model_used": synthesis_result.get("model_used", "gemini-3.6-flash"),
+        "engine": "Hybrid BM25 + 768-dim Vector + Cross-Encoder Reranker + Gemini 3.6 Flash"
     }

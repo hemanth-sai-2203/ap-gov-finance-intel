@@ -1314,7 +1314,7 @@
     document.getElementById('meta-route').textContent    = (data.query_type || '—').toUpperCase();
     document.getElementById('meta-passages').textContent = data.retrieved_passages_count ?? '—';
     document.getElementById('meta-sql').textContent      = data.sql_records_count ?? '0';
-    document.getElementById('meta-model').textContent    = data.model_used || 'gemini-2.5-flash';
+    document.getElementById('meta-model').textContent    = data.model_used || 'gemini-3.6-flash';
   }
 
   function highlightSource(idx) {

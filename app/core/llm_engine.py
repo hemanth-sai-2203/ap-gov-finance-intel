@@ -19,7 +19,7 @@ from app.core.text_decoder import decode_shifted_pdf_text, sanitize_display_titl
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
-DEFAULT_MODEL = settings.GEMINI_MODEL or "gemini-2.5-flash"
+DEFAULT_MODEL = settings.GEMINI_MODEL or "gemini-3.6-flash"
 LLM_PROVIDER = settings.LLM_PROVIDER or "gemini"
 
 # Anti-Hallucination Government Analyst System Prompt
