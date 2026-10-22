@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, List
 import httpx
 from app.core.config import settings
 from app.search.engine import EvidenceBundle, retrieve_evidence
+from app.core.text_decoder import decode_shifted_pdf_text, sanitize_display_title
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,10 @@ def call_gemini_api(prompt: str, model_name: str = "gemini-3.6-flash") -> str:
     # Try latest generation flash models in order of priority
     candidate_models = [
         model_name,
+        "gemini-2.0-flash",
+        "gemini-3.8-flash",
         "gemini-3.6-flash",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-        "gemini-2.5-flash"
+        "gemini-flash-latest"
     ]
     seen = set()
     models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
@@ -84,7 +85,7 @@ def call_gemini_api(prompt: str, model_name: str = "gemini-3.6-flash") -> str:
             ],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 2048
+                "maxOutputTokens": 4096
             }
         }
 
@@ -131,6 +132,25 @@ def generate_answer(
           - 'evidence_bundle': The underlying EvidenceBundle
           - 'model_used': Model identifier
     """
+    # Fast-path for greetings: Return polite, helpful welcome with zero bogus citations
+    if getattr(evidence, "query_type", "").lower() == "greeting":
+        return {
+            "query": query,
+            "answer": (
+                "### 🏛️ Andhra Pradesh State Finance Intelligence Assistant\n\n"
+                "Welcome to the Andhra Pradesh State Finance and Budget Intelligence platform. I am connected to verified official publications, annual budget estimates, FRBM compliance reports, and the AP Financial Code.\n\n"
+                "**Here are a few questions you can ask me:**\n"
+                "* *\"What are the key priorities in the 2024-25 Budget Speech?\"*\n"
+                "* *\"What is the total budget allocation for the School Education Department in 2026-27?\"*\n"
+                "* *\"Compare agriculture department allocations between 2023-24 and 2024-25.\"*\n"
+                "* *\"Explain the guidelines and procedure for Comprehensive Budget Release Orders (CBRO).\"*\n"
+                "* *\"What are the rules regarding re-appropriation of budget funds in the AP Financial Code?\"*"
+            ),
+            "citations": [],
+            "evidence_bundle": evidence.to_dict(),
+            "model_used": "greeting_handler"
+        }
+
     if not evidence.passages and not evidence.sql_records and not evidence.sql_aggregations:
         return {
             "query": query,
@@ -164,11 +184,13 @@ Please synthesize a comprehensive, highly accurate response strictly grounded in
         seen = set()
 
         for p in evidence.passages:
-            clean_title = " ".join((p.title or "Official AP Government Document").split())
+            raw_title = p.title or "Official AP Government Document"
+            clean_title = sanitize_display_title(raw_title, category=p.category, financial_year=p.financial_year)
             cite_key = (clean_title, p.financial_year, p.page_number)
             if cite_key not in seen:
                 seen.add(cite_key)
-                excerpt = " ".join(p.content.split())[:280] if p.content else ""
+                decoded_content = decode_shifted_pdf_text(p.content or "")
+                excerpt = " ".join(decoded_content.split())[:280] if decoded_content else ""
                 citations.append({
                     "title": clean_title,
                     "document": clean_title,
@@ -177,7 +199,7 @@ Please synthesize a comprehensive, highly accurate response strictly grounded in
                     "page_number": p.page_number,
                     "page": p.page_number,
                     "excerpt": excerpt,
-                    "content": p.content,
+                    "content": decoded_content,
                     "relevance_score": round(float(p.rerank_score), 4),
                     "source_url": p.source_url,
                     "citation_label": f"[Source: {clean_title}, {p.financial_year}, Page {p.page_number}]"

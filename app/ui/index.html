@@ -1222,7 +1222,10 @@
 
       // Citations pills
       const cits = (data.citations || []).map((c, idx) => {
-        const rawTitle = c.document || c.title || 'Official Document';
+        let rawTitle = c.document || c.title || 'Official AP Publication';
+        if (rawTitle.toLowerCase().includes('click here') || rawTitle.trim() === 'download') {
+          rawTitle = 'AP State Finance Publication';
+        }
         const docName = rawTitle.replace(/\s+/g, ' ').trim();
         const pageVal = (c.page !== undefined && c.page !== null && c.page !== 'N/A') ? c.page : (c.page_number || '?');
         const shortName = docName.length > 32 ? docName.substring(0, 30) + '…' : docName;
@@ -1239,15 +1242,18 @@
         renderedAnswer = escapeHtml(data.answer || 'No answer returned.').replace(/\n/g, '<br/>');
       }
 
-      const routeClass = (data.query_type || 'rag').toLowerCase() === 'sql' ? 'route-sql'
-        : (data.query_type || '').toLowerCase() === 'hybrid' ? 'route-hybrid' : 'route-rag';
+      const qTypeLower = (data.query_type || 'rag').toLowerCase();
+      const routeClass = qTypeLower === 'sql' ? 'route-sql'
+        : qTypeLower === 'hybrid' ? 'route-hybrid'
+        : qTypeLower === 'greeting' ? 'route-greeting' : 'route-rag';
+      const engineLabel = qTypeLower === 'greeting' ? 'ASSISTANT' : `${qTypeLower.toUpperCase()} ENGINE`;
 
       msgs.innerHTML += `
         <div class="message ai">
           <div class="msg-avatar ai">🏛️</div>
           <div class="msg-bubble">
             <div style="margin-bottom: 10px;">
-              <span class="route-badge ${routeClass}">${(data.query_type || 'RAG').toUpperCase()} ENGINE</span>
+              <span class="route-badge ${routeClass}">${engineLabel}</span>
             </div>
             <div class="msg-content">${renderedAnswer}</div>
             ${cits ? `<div class="citations-row">${cits}</div>` : ''}
@@ -1284,17 +1290,21 @@
       srcCards.innerHTML = '<div style="font-size:12.5px;color:var(--text-muted);text-align:center;padding:20px;">No specific citation passages returned.</div>';
     } else {
       srcCards.innerHTML = citations.map((c, idx) => {
-        const rawTitle = c.document || c.title || 'Official AP Publication';
+        let rawTitle = c.document || c.title || 'Official AP Publication';
+        if (rawTitle.toLowerCase().includes('click here') || rawTitle.trim() === 'download') {
+          rawTitle = 'AP State Finance Publication';
+        }
         const docName = rawTitle.replace(/\s+/g, ' ').trim();
         const pageVal = (c.page !== undefined && c.page !== null && c.page !== 'N/A') ? c.page : (c.page_number || 'N/A');
         const yearVal = c.financial_year || '—';
         const rawExcerpt = c.excerpt || c.content || '';
         const cleanExcerpt = rawExcerpt.replace(/\s+/g, ' ').trim();
         const scoreVal = c.relevance_score ? ` · Score: ${c.relevance_score}` : '';
+        const linkHtml = c.source_url ? `<a href="${escapeHtml(c.source_url)}" target="_blank" style="color:inherit;text-decoration:none;" title="Open official PDF">📄 ${escapeHtml(docName)} ↗</a>` : `📄 ${escapeHtml(docName)}`;
 
         return `
         <div class="source-card" id="source-card-${idx}">
-          <div class="source-doc">📄 ${escapeHtml(docName)}</div>
+          <div class="source-doc">${linkHtml}</div>
           <div class="source-meta">📅 FY: ${escapeHtml(yearVal)} &nbsp;·&nbsp; Page: ${pageVal}${scoreVal}</div>
           ${cleanExcerpt ? `<div class="source-excerpt">"${escapeHtml(cleanExcerpt.substring(0, 240))}${cleanExcerpt.length > 240 ? '…' : ''}"</div>` : ''}
         </div>`;
