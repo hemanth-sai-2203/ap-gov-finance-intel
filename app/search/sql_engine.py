@@ -98,6 +98,48 @@ def get_total_budget_by_year(
             db.close()
 
 
+def get_total_budget_all_years(
+    db: Optional[Session] = None
+) -> List[Dict[str, Any]]:
+    """
+    Computes total budget estimates, revised estimates, and actual expenditure
+    across all recorded financial years in Supabase SQL.
+    """
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        rows = (
+            db.query(
+                FinancialRecordModel.financial_year,
+                func.sum(FinancialRecordModel.budget_estimate_cr).label("total_be"),
+                func.sum(FinancialRecordModel.revised_estimate_cr).label("total_re"),
+                func.sum(FinancialRecordModel.actual_expenditure_cr).label("total_actual")
+            )
+            .filter(FinancialRecordModel.financial_year.isnot(None))
+            .group_by(FinancialRecordModel.financial_year)
+            .order_by(FinancialRecordModel.financial_year.desc())
+            .all()
+        )
+
+        return [
+            {
+                "financial_year": yr,
+                "budget_estimate_cr": float(be) if be else 0.0,
+                "revised_estimate_cr": float(re) if re else 0.0,
+                "actual_expenditure_cr": float(ac) if ac else 0.0,
+                "source_document_title": f"AP State Annual Financial Statement ({yr})",
+                "retrieval_method": "sql_multi_year_aggregation"
+            }
+            for yr, be, re, ac in rows
+        ]
+    finally:
+        if close_db:
+            db.close()
+
+
 def get_top_departments_by_allocation(
     financial_year: str,
     limit: int = 10,

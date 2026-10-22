@@ -24,6 +24,7 @@ from app.core.text_decoder import decode_shifted_pdf_text, sanitize_display_titl
 from app.search.sql_engine import (
     get_department_allocation,
     get_total_budget_by_year,
+    get_total_budget_all_years,
     compare_department_across_years,
     get_top_departments_by_allocation,
     get_document_catalog
@@ -152,7 +153,12 @@ def retrieve_evidence(
                     evidence.sql_records = compare_department_across_years(dept)
                 elif dept:
                     evidence.sql_records = get_department_allocation(dept, financial_year=year)
-                elif year and "total" in normalized_query.lower():
+                elif "total" in normalized_query.lower() or "budget" in normalized_query.lower():
+                    if year:
+                        evidence.sql_aggregations = get_total_budget_by_year(year)
+                    else:
+                        evidence.sql_records = get_total_budget_all_years()
+                elif year:
                     evidence.sql_aggregations = get_total_budget_by_year(year)
             except Exception as e:
                 logger.warning(f"SQL execution encountered notice: {e}")
