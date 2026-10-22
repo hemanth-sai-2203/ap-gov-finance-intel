@@ -12,6 +12,7 @@ REST Endpoints:
   GET  /api/budget/top-departments — Top departments by budget allocation (Deterministic SQL)
 """
 import os
+import time
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
@@ -21,6 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
@@ -34,6 +36,7 @@ from app.search.sql_engine import (
     compare_department_across_years,
 )
 from app.core.query_pipeline import run_query
+from app.search.postgres_search import postgres_health_check
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,32 +109,151 @@ def serve_portal_ui_alias():
     return serve_portal_ui()
 
 @app.get("/health", tags=["System"])
-def health_check(db: Session = Depends(get_db)):
-    """Health check endpoint confirming status of SQL and Vector engines."""
-    try:
-        doc_count = db.query(DocumentModel).count()
-        chunk_count = db.query(DocumentChunkModel).count()
-        return {
-            "status": "healthy",
-            "service": settings.PROJECT_NAME,
-            "version": "1.0.0",
-            "database": {
-                "supabase_postgresql": "connected",
-                "total_documents": doc_count,
-                "total_sql_chunks": chunk_count
-            },
-            "vector_store": {
-                "weaviate_cloud": "connected",
-                "dimension": 768,
-                "embedding_model": settings.EMBEDDING_MODEL_NAME
-            },
-            "llm": {
-                "provider": settings.LLM_PROVIDER,
-                "model": settings.GEMINI_MODEL
-            }
+def health_check():
+    """
+    Live health check — actively probes Supabase PostgreSQL and Weaviate Cloud.
+    Reports real connectivity status. Returns 'degraded' if either backend is down.
+    """
+    health = {
+        "service": settings.PROJECT_NAME,
+        "version": "1.0.0",
+        "llm": {
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.GEMINI_MODEL
         }
+    }
+    issues = []
+
+    # --- Test Supabase PostgreSQL ---
+    pg_check = postgres_health_check()
+    if pg_check["postgres_status"] == "ok":
+        health["database"] = {
+            "supabase_postgresql": "connected",
+            "total_documents": pg_check["document_count"],
+            "total_chunks": pg_check["chunk_count"]
+        }
+    else:
+        err = pg_check.get("error", "unknown error")
+        health["database"] = {
+            "supabase_postgresql": "UNREACHABLE",
+            "error": err,
+            "action_required": "Log into Supabase dashboard and resume the project (free tier pauses after 1 week of inactivity)"
+        }
+        issues.append(f"Supabase PostgreSQL unreachable: {err[:120]}")
+
+    # --- Test Weaviate Cloud ---
+    try:
+        from app.core.weaviate_client import get_weaviate_client, WEAVIATE_INDEX_NAME
+        wv_client = get_weaviate_client(max_retries=1)
+        coll = wv_client.collections.get(WEAVIATE_INDEX_NAME)
+        agg = coll.aggregate.over_all(total_count=True)
+        wv_count = agg.total_count if agg else 0
+        wv_client.close()
+        health["vector_store"] = {
+            "weaviate_cloud": "connected",
+            "total_vectors": wv_count,
+            "dimension": settings.EMBEDDING_DIMENSION,
+            "embedding_model": settings.EMBEDDING_MODEL_NAME
+        }
+    except Exception as wv_err:
+        health["vector_store"] = {
+            "weaviate_cloud": "UNREACHABLE",
+            "error": str(wv_err)[:200],
+            "fallback_active": "PostgreSQL full-text search (degraded quality)",
+            "action_required": "Log into Weaviate Cloud console and resume the cluster (free tier pauses after inactivity)"
+        }
+        issues.append(f"Weaviate Cloud unreachable: {str(wv_err)[:120]}")
+
+    if issues:
+        health["status"] = "degraded"
+        health["issues"] = issues
+        health["recovery_guide"] = (
+            "1. Go to https://console.weaviate.cloud → resume your cluster.  "
+            "2. Go to https://supabase.com/dashboard → select your project → click 'Resume'.  "
+            "3. Wait 30-60 seconds, then retry your query."
+        )
+    else:
+        health["status"] = "healthy"
+
+    return health
+
+
+@app.get("/api/diagnostics", tags=["System"])
+def diagnostics():
+    """
+    Full diagnostic report: connectivity, config presence, and service status.
+    Use this when queries return empty results to identify the root cause.
+    """
+    diag = {
+        "env_vars_present": {
+            "DATABASE_URL": bool(settings.DATABASE_URL),
+            "WEAVIATE_URL": bool(settings.WEAVIATE_URL),
+            "WEAVIATE_API_KEY": bool(settings.WEAVIATE_API_KEY),
+            "GEMINI_API_KEY": bool(settings.GEMINI_API_KEY),
+            "HF_TOKEN": bool(settings.HF_TOKEN)
+        }
+    }
+
+    pg_check = postgres_health_check()
+    diag["supabase_postgresql"] = pg_check
+
+    try:
+        from app.core.weaviate_client import get_weaviate_client, WEAVIATE_INDEX_NAME
+        wv_client = get_weaviate_client(max_retries=1)
+        coll = wv_client.collections.get(WEAVIATE_INDEX_NAME)
+        agg = coll.aggregate.over_all(total_count=True)
+        diag["weaviate_cloud"] = {
+            "status": "connected",
+            "collection": WEAVIATE_INDEX_NAME,
+            "total_objects": agg.total_count if agg else 0
+        }
+        wv_client.close()
+    except Exception as wv_err:
+        diag["weaviate_cloud"] = {
+            "status": "error",
+            "error": str(wv_err),
+            "hint": "Weaviate Cloud free tier pauses after ~14 days inactivity. Resume at https://console.weaviate.cloud"
+        }
+
+    if "not found" in str(pg_check.get("error", "")).lower():
+        diag["empty_results_cause"] = (
+            "SUPABASE PROJECT IS PAUSED DUE TO INACTIVITY: "
+            "Go to your Supabase project dashboard (https://supabase.com/dashboard) and click 'Restore project' to resume it."
+        )
+    else:
+        diag["empty_results_cause"] = (
+            "Queries return empty when BOTH Supabase and Weaviate are unreachable. "
+            "Fix: Resume both services from their dashboards."
+            if pg_check["postgres_status"] != "ok" else "PostgreSQL is up — check Weaviate status above."
+        )
+    return diag
+
+
+@app.get("/api/keepalive", tags=["System"])
+def keepalive(db: Session = Depends(get_db)):
+    """
+    Heartbeat keep-alive endpoint:
+    Pings Supabase PostgreSQL and Weaviate Cloud to keep connection pools fresh
+    and prevent cloud free-tier projects from pausing due to inactivity.
+    """
+    results = {"timestamp": time.time(), "supabase": "unreachable", "weaviate": "unreachable"}
+    try:
+        db.execute(text("SELECT 1"))
+        results["supabase"] = "active"
     except Exception as e:
-        return {"status": "degraded", "detail": str(e)}
+        results["supabase"] = f"error: {str(e)[:120]}"
+
+    try:
+        from app.core.weaviate_client import get_weaviate_client, WEAVIATE_INDEX_NAME
+        wv = get_weaviate_client(max_retries=1)
+        coll = wv.collections.get(WEAVIATE_INDEX_NAME)
+        agg = coll.aggregate.over_all(total_count=True)
+        results["weaviate"] = f"active ({agg.total_count} objects)"
+        wv.close()
+    except Exception as e:
+        results["weaviate"] = f"error: {str(e)[:120]}"
+
+    return results
 
 
 @app.get("/api/stats", tags=["System"])
