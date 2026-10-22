@@ -126,42 +126,26 @@ def build_deterministic_briefing(query: str, evidence: EvidenceBundle) -> str:
         "",
         "### 🔍 Key Findings & Policy Provisions"
     ]
-    scheme = evidence.routing_metadata.get("scheme")
+    findings_added = False
 
-    # 1. If asking about a specific scheme or narrative, prioritize official document passages!
-    if (scheme or evidence.query_type in ["rag", "hybrid"]) and evidence.passages:
-        for idx, p in enumerate(evidence.passages[:4], 1):
-            clean_title = sanitize_display_title(p.title or "Official Publication", category=p.category, financial_year=p.financial_year)
-            decoded = decode_shifted_pdf_text(p.content or "")
-            clean_content = " ".join(decoded.split())[:300]
-            lines.append(f"* **Official Record #{idx} ({clean_title}):** \"{clean_content}...\" [Source: {clean_title}, {p.financial_year}, Page {p.page_number}]")
-
-        # Include scheme-specific SQL line items if present
-        scheme_sql = [r for r in evidence.sql_records if r.get("scheme_name") and "General" not in str(r.get("scheme_name"))]
-        if scheme_sql:
-            lines.append("\n* **Scheme Financial Records:**")
-            for r in scheme_sql[:5]:
-                yr = r.get("financial_year", "N/A")
-                s_name = r.get("scheme_name")
-                be = r.get("budget_estimate_cr")
-                be_str = f"₹{be:,.2f} Cr" if be is not None else "N/A"
-                lines.append(f"  * **{s_name} ({yr}):** Allocation: {be_str} [Source: Demand for Grants, {yr}]")
-
-    elif evidence.sql_aggregations:
+    # 1. State-level Budget Aggregations (Deterministic SQL)
+    if evidence.sql_aggregations:
         agg = evidence.sql_aggregations
         yr = agg.get("financial_year", "State Financial Year")
         be = agg.get("total_budget_estimate_cr", 0.0)
         re = agg.get("total_revised_estimate_cr", 0.0)
         act = agg.get("total_actual_expenditure_cr", 0.0)
-        lines.append(f"* **Total Budget Estimate ({yr}):** ₹{be:,.2f} Crore [Source: AP State Budget Estimates, {yr}]")
+        lines.append(f"* **Total State Budget Estimate ({yr}):** ₹{be:,.2f} Crore [Source: AP State Budget Estimates, {yr}]")
         if re:
             lines.append(f"* **Revised Estimate ({yr}):** ₹{re:,.2f} Crore [Source: AP State Budget Estimates, {yr}]")
         if act:
             lines.append(f"* **Actual Expenditure ({yr}):** ₹{act:,.2f} Crore [Source: AP State Accounts, {yr}]")
+        findings_added = True
 
-    elif evidence.sql_records:
-        lines.append("* **Official Financial Records Summary:**")
-        for r in evidence.sql_records[:10]:
+    # 2. Structured Tabular Financial Records (Department & Scheme Outlays)
+    if evidence.sql_records:
+        lines.append("\n* **Official Financial Records (SQL):**" if findings_added else "* **Official Financial Records (SQL):**")
+        for r in evidence.sql_records[:8]:
             yr = r.get("financial_year", "N/A")
             dept = r.get("department")
             scheme_item = r.get("scheme_name")
@@ -175,13 +159,20 @@ def build_deterministic_briefing(query: str, evidence: EvidenceBundle) -> str:
                 lines.append(f"  * **{dept} ({yr}):** Department Budget Estimate: {be_str}{re_str} [Source: {dept} Financial Record, {yr}]")
             else:
                 lines.append(f"  * **Financial Year {yr}:** Total Allocation: {be_str} [Source: Annual Financial Statement, {yr}]")
+        findings_added = True
 
-    elif evidence.passages:
-        for idx, p in enumerate(evidence.passages[:3], 1):
+    # 3. Verified Document Passages (Demands for Grants, Speeches, Manuals, Policies)
+    if evidence.passages:
+        lines.append("\n* **Verified Document Records & Policy Provisions:**" if findings_added else "* **Verified Document Records & Policy Provisions:**")
+        for idx, p in enumerate(evidence.passages[:4], 1):
             clean_title = sanitize_display_title(p.title or "Official Publication", category=p.category, financial_year=p.financial_year)
             decoded = decode_shifted_pdf_text(p.content or "")
             clean_content = " ".join(decoded.split())[:280]
-            lines.append(f"* **Official Record #{idx} ({clean_title}):** \"{clean_content}...\" [Source: {clean_title}, {p.financial_year}, Page {p.page_number}]")
+            lines.append(f"  * **Official Record #{idx} ({clean_title}):** \"{clean_content}...\" [Source: {clean_title}, {p.financial_year}, Page {p.page_number}]")
+        findings_added = True
+
+    if not findings_added:
+        lines.append("* No verified figures or policy provisions could be matched in the current database for this query.")
 
     lines.extend([
         "",

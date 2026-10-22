@@ -7,12 +7,48 @@ Guarantees mathematical correctness for exact financial numbers, totals, and yea
 import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.db.session import SessionLocal
 from app.db.models import FinancialRecordModel, DocumentModel
 
 logger = logging.getLogger(__name__)
+
+
+def get_department_search_terms(department_name: str) -> List[str]:
+    """Resolves department aliases to match diverse raw database naming conventions."""
+    if not department_name:
+        return []
+    d_low = department_name.lower().strip()
+    if "health" in d_low or "medical" in d_low:
+        return ["Health"]
+    if "transport" in d_low or "roads" in d_low or "r&b" in d_low:
+        return ["Transport", "Roads"]
+    if "water" in d_low or "irrigation" in d_low:
+        return ["Water Resources", "Irrigation"]
+    if "agriculture" in d_low:
+        return ["Agriculture"]
+    if "municipal" in d_low:
+        return ["Municipal"]
+    if "panchayat" in d_low or "rural" in d_low:
+        return ["Panchayat", "Rural Development"]
+    if "higher education" in d_low:
+        return ["Higher Education"]
+    if "school education" in d_low or ("education" in d_low and "higher" not in d_low):
+        return ["School Education", "Education"]
+    if "energy" in d_low:
+        return ["Energy"]
+    if "social welfare" in d_low:
+        return ["Social Welfare"]
+    if "tribal" in d_low:
+        return ["Tribal Welfare"]
+    if "minority" in d_low or "minorities" in d_low:
+        return ["Minority Welfare", "Minorities"]
+    if "bc welfare" in d_low or "backward" in d_low:
+        return ["Backward Classes", "Bc Welfare"]
+    if "police" in d_low or "home" in d_low:
+        return ["Home"]
+    return [department_name.strip()]
 
 
 def get_department_allocation(
@@ -31,10 +67,12 @@ def get_department_allocation(
         close_db = True
 
     try:
+        search_terms = get_department_search_terms(department_name)
+        conds = [FinancialRecordModel.department.ilike(f"%{t}%") for t in search_terms]
         query = (
             db.query(FinancialRecordModel, DocumentModel)
             .outerjoin(DocumentModel, FinancialRecordModel.source_document_id == DocumentModel.id)
-            .filter(FinancialRecordModel.department.ilike(f"%{department_name}%"))
+            .filter(or_(*conds))
         )
         if financial_year:
             query = query.filter(FinancialRecordModel.financial_year == financial_year)
@@ -318,6 +356,8 @@ def compare_department_across_years(
         close_db = True
 
     try:
+        search_terms = get_department_search_terms(department_name)
+        conds = [FinancialRecordModel.department.ilike(f"%{t}%") for t in search_terms]
         rows = (
             db.query(
                 FinancialRecordModel.financial_year,
@@ -325,7 +365,7 @@ def compare_department_across_years(
                 func.sum(FinancialRecordModel.revised_estimate_cr).label("total_re"),
                 func.sum(FinancialRecordModel.actual_expenditure_cr).label("total_actual")
             )
-            .filter(FinancialRecordModel.department.ilike(f"%{department_name}%"))
+            .filter(or_(*conds))
             .group_by(FinancialRecordModel.financial_year)
             .order_by(FinancialRecordModel.financial_year.asc())
             .all()

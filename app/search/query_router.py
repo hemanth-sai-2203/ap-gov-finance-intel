@@ -224,6 +224,27 @@ def normalize_raw_query(query: str) -> str:
     }
     for wrong, fixed in year_typos.items():
         q = q.replace(wrong, fixed)
+
+    # Correct common phonetic typos and domain misspellings
+    spelling_fixes = {
+        r'\baccross\b': 'across',
+        r'\bbudjet\b': 'budget',
+        r'\bbudjets\b': 'budgets',
+        r'\balocation\b': 'allocation',
+        r'\balocations\b': 'allocations',
+        r'\balocated\b': 'allocated',
+        r'\birigation\b': 'irrigation',
+        r'\bpolavram\b': 'polavaram',
+        r'\breapropriation\b': 'reappropriation',
+        r'\bre-apropriation\b': 'reappropriation',
+        r'\bagricuture\b': 'agriculture',
+        r'\bagriculure\b': 'agriculture',
+        r'\bedcuation\b': 'education',
+        r'\bfinanical\b': 'financial',
+        r'\bfinace\b': 'finance'
+    }
+    for wrong_pat, right_word in spelling_fixes.items():
+        q = re.sub(wrong_pat, right_word, q, flags=re.IGNORECASE)
         
     # Normalize spaces
     q = re.sub(r'\s+', ' ', q).strip()

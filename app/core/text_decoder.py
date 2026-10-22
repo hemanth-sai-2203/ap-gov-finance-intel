@@ -136,11 +136,17 @@ def sanitize_display_title(raw_title: str, category: str = "", financial_year: s
             "socio_economic_survey": "Andhra Pradesh Socio-Economic Survey",
             "budget_speech": "Andhra Pradesh Budget Speech",
             "budget_volumes": "Andhra Pradesh Budget Estimates (Volume)",
+            "budget_volume": "Andhra Pradesh Budget Estimates (Volume)",
             "frbm_reports": "Fiscal Responsibility & Budget Management (FRBM) Report",
+            "frbm_report": "Fiscal Responsibility & Budget Management (FRBM) Report",
+            "finance_publication": "Andhra Pradesh State Finance Publication",
             "finance_gos": "Finance Department Government Order (G.O.)",
+            "finance_go": "Finance Department Government Order (G.O.)",
             "prc_reports": "Pay Revision Commission (PRC) Report",
+            "prc_report": "Pay Revision Commission (PRC) Report",
             "finance_manual": "Andhra Pradesh Financial Code & Budget Manual",
-            "guidelines_circulars": "Budget Guidelines & Comprehensive Release Orders"
+            "guidelines_circulars": "Budget Guidelines & Comprehensive Release Orders",
+            "guideline_circular": "Budget Guidelines & Comprehensive Release Orders"
         }
         base = cat_labels.get(category, "AP Official State Finance Publication")
         if financial_year and financial_year != "N/A" and financial_year != "General":
