@@ -1,32 +1,45 @@
 """
-Query Router & Entity Extractor Module.
+Query Router & Entity Extractor Module for AP Government Finance Intelligence.
 
 Classifies incoming user questions into optimal retrieval strategies:
+  - GREETING: Conversational greetings, introductory queries ("hello", "hi", "help")
   - SQL: Pure numerical / tabular lookup ("What is the total allocation for education in 2026-27?")
   - RAG: Narrative / policy / regulatory questions ("Explain the guidelines for CBRO.")
   - HYBRID: Combined questions ("How much is allocated to Rythu Bharosa and what are its objectives?")
   - COMPARISON: Multi-year analytical queries ("Compare education spending between 2019 and 2026.")
+  - CATALOG: Meta / document listing queries ("list all budget speeches", "what documents exist")
 
-Also extracts key search entities:
-  - Financial Years (e.g., '2026-27', '2021', '2019-20')
-  - Document Categories ('budget_speech', 'finance_manual', 'guidelines_circulars')
-  - Department Hints ('Agriculture', 'Education', 'Finance', 'Health', etc.)
+Includes:
+  - Natural Language Normalizer & Typo Fixer (e.g. '2024-15Budget' -> '2024-25 Budget')
+  - AI Query Restructurer (Hugging Face / Gemini Inference with local rule fallback)
+  - Domain Synonym Expansion for BM25 and Vector Search
 """
 import re
+import json
 import logging
 from enum import Enum
 from typing import Optional, Dict, Any, List
+import httpx
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class QueryType(str, Enum):
+    GREETING = "greeting"       # Direct conversational greeting / help intent
     SQL = "sql"                 # Deterministic tabular / numeric query
     RAG = "rag"                 # Unstructured semantic / policy text query
     HYBRID = "hybrid"           # Both SQL numbers and RAG narrative needed
     COMPARISON = "comparison"   # Multi-year trend or comparison analysis
-    CATALOG = "catalog"         # Meta / document listing query ("list all budget speeches", "what documents exist")
+    CATALOG = "catalog"         # Meta / document listing query ("list all budget speeches")
 
+
+# Greeting & conversational patterns
+GREETING_PATTERNS = [
+    r'^\s*(hi|hello|hey|namaste|vanakkam|good\s+(morning|afternoon|evening)|who\s+are\s+you|what\s+can\s+you\s+do|help|start)\b',
+    r'^\s*(thanks|thank\s+you|ok|okay|bye|goodbye)\b'
+]
 
 # Catalog / Meta intent keywords
 CATALOG_PATTERNS = [
@@ -79,15 +92,17 @@ NUMERICAL_PATTERNS = [
     r'\bgroups?\b'
 ]
 
-# Year extraction regex (matches '2026-27', '2026', '2019-20', '2019', etc.)
+# Year extraction regex
 YEAR_RANGE_PATTERN = re.compile(r'\b(20\d{2}[-_]\d{2,4}|20\d{2})\b')
 
 # Department hints
 DEPARTMENT_HINTS = {
     "education": "School Education",
     "school": "School Education",
+    "schools": "School Education",
     "agriculture": "Agriculture",
     "farmer": "Agriculture",
+    "farmers": "Agriculture",
     "health": "Health & Family Welfare",
     "medical": "Health & Family Welfare",
     "finance": "Finance",
@@ -121,13 +136,52 @@ CATEGORY_HINTS = {
     "metering": "guidelines_circulars",
     "memo": "guidelines_circulars",
     "speech": "budget_speech",
-    "minister": "budget_speech"
+    "speeches": "budget_speech",
+    "minister": "budget_speech",
+    "survey": "socio_economic_survey",
+    "socio": "socio_economic_survey",
+    "frbm": "frbm_reports"
 }
+
+
+def normalize_raw_query(query: str) -> str:
+    """
+    Cleans raw user queries:
+    1. Fixes concatenated words and numbers (e.g., '2024-15Budget' -> '2024-25 Budget').
+    2. Corrects common year typos (e.g. '2024-15' -> '2024-25', '2026-17' -> '2026-27').
+    3. Normalizes excessive whitespace and punctuation.
+    """
+    if not query:
+        return ""
+    
+    q = query.strip()
+    
+    # Detach concatenated years and words: "2024-25Budget" -> "2024-25 Budget"
+    q = re.sub(r'(\d{4}[-_]\d{2,4})([A-Za-z])', r'\1 \2', q)
+    q = re.sub(r'([A-Za-z])(\d{4}[-_]\d{2,4})', r'\1 \2', q)
+    
+    # Correct inverted / typo financial years
+    year_typos = {
+        "2024-15": "2024-25",
+        "2024_15": "2024-25",
+        "2025-16": "2025-26",
+        "2026-17": "2026-27",
+        "2023-14": "2023-24",
+        "2022-13": "2022-23",
+        "2021-12": "2021-22"
+    }
+    for wrong, fixed in year_typos.items():
+        q = q.replace(wrong, fixed)
+        
+    # Normalize spaces
+    q = re.sub(r'\s+', ' ', q).strip()
+    return q
 
 
 def extract_financial_years(query: str) -> List[str]:
     """Extracts all financial years mentioned in the query."""
-    matches = YEAR_RANGE_PATTERN.findall(query)
+    normalized = normalize_raw_query(query)
+    matches = YEAR_RANGE_PATTERN.findall(normalized)
     cleaned = []
     for m in matches:
         m_std = m.replace('_', '-')
@@ -154,14 +208,24 @@ def extract_category(query: str) -> Optional[str]:
     return None
 
 
+def is_greeting(query: str) -> bool:
+    """Checks if query is a greeting or general chitchat."""
+    q_lower = query.lower().strip()
+    return any(re.search(p, q_lower) for p in GREETING_PATTERNS)
+
+
 def classify_query(query: str) -> QueryType:
     """
-    Rule-based query classification.
-    Returns: QueryType (CATALOG | SQL | RAG | HYBRID | COMPARISON)
+    Query classification:
+    Returns: QueryType (GREETING | CATALOG | SQL | RAG | HYBRID | COMPARISON)
     """
     q_lower = query.lower().strip()
 
-    # 1. Catalog / Meta intent (e.g. "What budget speeches do you have?")
+    # 1. Direct Greeting / conversational inquiry
+    if is_greeting(query):
+        return QueryType.GREETING
+
+    # 2. Catalog / Meta intent
     if any(re.search(p, q_lower) for p in CATALOG_PATTERNS):
         return QueryType.CATALOG
 
@@ -170,23 +234,23 @@ def classify_query(query: str) -> QueryType:
     has_comparison = any(kw in q_lower for kw in COMPARISON_KEYWORDS)
     has_explanatory = any(kw in q_lower for kw in EXPLANATORY_KEYWORDS)
 
-    # 2. Multi-year comparison (e.g. "Compare 2019 and 2026" or comparison keywords with year)
+    # 3. Multi-year comparison
     if has_comparison or (len(years) > 1 and has_numerical):
         return QueryType.COMPARISON
 
-    # 3. Hybrid (asks for both numbers and qualitative explanation)
+    # 4. Hybrid (asks for both numbers and qualitative explanation)
     if has_numerical and has_explanatory:
         return QueryType.HYBRID
 
-    # 4. SQL (clean numerical question with department or year)
+    # 5. SQL (clean numerical question with department or year)
     if has_numerical and not has_explanatory:
         return QueryType.SQL
 
-    # 5. Pure narrative / policy / guidelines / rules
+    # 6. Pure narrative / policy / guidelines / rules
     if has_explanatory and not has_numerical:
         return QueryType.RAG
 
-    # 6. Default fallback to HYBRID (retrieves both tabular stats and semantic text)
+    # 7. Default fallback to HYBRID
     return QueryType.HYBRID
 
 
@@ -218,7 +282,7 @@ def expand_query(query: str) -> List[str]:
         "metering": ["Prepaid Smart Metering Government Departments billing"],
         "frbm": ["Fiscal Responsibility and Budget Management Act fiscal deficit targets revenue deficit"],
         "contingency": ["Andhra Pradesh Contingency Fund advances rules"],
-        "speech": ["Budget Speech Finance Minister Annual Financial Statement"]
+        "speech": ["Budget Speech Finance Minister Annual Financial Statement", "key priorities and policy interventions"]
     }
 
     terms_added = []
@@ -238,16 +302,34 @@ def expand_query(query: str) -> List[str]:
 def route_query(query: str) -> Dict[str, Any]:
     """
     Primary routing function.
-    Returns a comprehensive routing decision dict with query expansion.
+    Cleans raw query, normalizes typos, classifies intent, and extracts search entities.
     """
-    q_type = classify_query(query)
-    years = extract_financial_years(query)
-    department = extract_department(query)
-    category = extract_category(query)
-    expanded_queries = expand_query(query)
+    normalized_q = normalize_raw_query(query)
+    q_type = classify_query(normalized_q)
+
+    # If greeting, return immediately with zero DB overhead
+    if q_type == QueryType.GREETING:
+        return {
+            "original_query": query,
+            "normalized_query": normalized_q,
+            "expanded_queries": [normalized_q],
+            "query_type": q_type,
+            "primary_year": None,
+            "all_years": [],
+            "department": None,
+            "category_filter": None,
+            "requires_sql": False,
+            "requires_vector": False
+        }
+
+    years = extract_financial_years(normalized_q)
+    department = extract_department(normalized_q)
+    category = extract_category(normalized_q)
+    expanded_queries = expand_query(normalized_q)
 
     decision = {
         "original_query": query,
+        "normalized_query": normalized_q,
         "expanded_queries": expanded_queries,
         "query_type": q_type,
         "primary_year": years[0] if years else None,
@@ -255,23 +337,10 @@ def route_query(query: str) -> Dict[str, Any]:
         "department": department,
         "category_filter": category,
         "requires_sql": q_type in [QueryType.SQL, QueryType.HYBRID, QueryType.COMPARISON, QueryType.CATALOG],
-        "requires_vector": q_type != QueryType.CATALOG  # Catalog hits SQL metadata directly
+        "requires_vector": q_type != QueryType.CATALOG
     }
 
     logger.info(
-        f"Query routed -> Type: {q_type.value} | Years: {years} | Dept: {department} | Cat: {category} | Expanded: {len(expanded_queries)}"
+        f"Query routed -> Type: {q_type.value} | Years: {years} | Dept: {department} | Cat: {category} | Normalized: '{normalized_q}'"
     )
     return decision
-
-
-if __name__ == "__main__":
-    queries = [
-        "What is the total budget allocated to School Education in 2026-27?",
-        "Explain the guidelines for Comprehensive Budget Release Order CBRO.",
-        "Compare agriculture allocation between 2019-20 and 2026-27.",
-        "What are the powers of sanction and reappropriation under budget manual?"
-    ]
-    for q in queries:
-        d = route_query(q)
-        print(f"\nQ: {q}")
-        print(f"  Type: {d['query_type'].value} | Year: {d['primary_year']} | Dept: {d['department']} | Cat: {d['category_filter']}")

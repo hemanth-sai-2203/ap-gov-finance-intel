@@ -20,6 +20,7 @@ from app.search.hybrid_search import hybrid_search
 from app.core.weaviate_client import get_weaviate_client
 from app.search.vector_search import vector_search
 from app.search.bm25_search import bm25_search
+from app.core.text_decoder import decode_shifted_pdf_text, sanitize_display_title
 from app.search.sql_engine import (
     get_department_allocation,
     get_total_budget_by_year,
@@ -126,6 +127,7 @@ def retrieve_evidence(
     # 1. Route query and extract entities
     routing = route_query(query)
     q_type = routing["query_type"]
+    normalized_query = routing.get("normalized_query", query)
     year = force_year or routing["primary_year"]
     category = force_category or routing["category_filter"]
     dept = routing["department"]
@@ -135,6 +137,10 @@ def retrieve_evidence(
         query_type=q_type.value if hasattr(q_type, 'value') else str(q_type),
         routing_metadata=routing
     )
+
+    # Fast-path for greetings: Return immediately with no search overhead
+    if q_type == QueryType.GREETING:
+        return evidence
 
     try:
         # 2. Execute SQL retrieval if catalog, numerical lookup or hybrid
@@ -146,7 +152,7 @@ def retrieve_evidence(
                     evidence.sql_records = compare_department_across_years(dept)
                 elif dept:
                     evidence.sql_records = get_department_allocation(dept, financial_year=year)
-                elif year and "total" in query.lower():
+                elif year and "total" in normalized_query.lower():
                     evidence.sql_aggregations = get_total_budget_by_year(year)
             except Exception as e:
                 logger.warning(f"SQL execution encountered notice: {e}")
@@ -155,7 +161,7 @@ def retrieve_evidence(
         if routing["requires_vector"]:
             try:
                 raw_results = hybrid_search(
-                    query=query,
+                    query=normalized_query,
                     top_k=top_k,
                     alpha=alpha,
                     financial_year=year,
@@ -165,20 +171,27 @@ def retrieve_evidence(
             except Exception as e:
                 logger.warning(f"Hybrid search invocation failed ({e}), falling back to BM25 search...")
                 try:
-                    raw_results = bm25_search(query=query, top_k=top_k, financial_year=year, category=category)
+                    raw_results = bm25_search(query=normalized_query, top_k=top_k, financial_year=year, category=category)
                 except Exception as bm_err:
                     logger.error(f"BM25 fallback search also failed: {bm_err}")
                     raw_results = []
 
-            # Convert to structured RetrievedPassage dataclass
+            # Convert to structured RetrievedPassage dataclass with text decoding and title sanitization
             for rank, r in enumerate(raw_results, 1):
-                clean_t = " ".join((r.get("title") or "Official AP Government Document").split())
+                raw_t = r.get("title") or "Official AP Government Document"
+                raw_cat = r.get("category", "uncategorized")
+                raw_fy = r.get("financial_year", "N/A")
+                clean_t = sanitize_display_title(raw_t, category=raw_cat, financial_year=raw_fy)
+                
+                # Unscramble +1 shifted font encoding
+                decoded_content = decode_shifted_pdf_text(r.get("content", ""))
+
                 p = RetrievedPassage(
                     rank=rank,
-                    content=r.get("content", ""),
+                    content=decoded_content,
                     title=clean_t,
-                    category=r.get("category", "uncategorized"),
-                    financial_year=r.get("financial_year", "N/A"),
+                    category=raw_cat,
+                    financial_year=raw_fy,
                     page_number=int(r.get("page_number") or 1),
                     weaviate_id=r.get("weaviate_id", ""),
                     document_id=r.get("document_id"),
