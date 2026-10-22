@@ -30,7 +30,10 @@ Your answers MUST adhere to these STRICT rules:
 2. PRECISE CITATIONS: Every factual claim, allocation figure, or catalog entry MUST include an exact inline citation:
    [Source: <Document Title>, <Financial Year>, Page <Page Number>]
 3. EXACT NUMERICAL ACCURACY: Quote exact rupee/crore figures as provided in the evidence. Never fabricate numbers or calculate estimated projections.
-4. STRUCTURED EXECUTIVE BRIEFING FORMAT: Always format every response using this clean, structured layout:
+4. SCOPE INTEGRITY (NO ENTITY CONFLATION):
+   - NEVER attribute a "State Total" budget figure or a whole department's total allocation to an individual scheme (e.g. Amma Vodi, Rythu Bharosa, Cheyutha).
+   - If the user asks for a specific scheme allocation and the evidence contains department-wide or state-wide totals but no scheme-specific row, explicitly clarify that the provided figures are for the parent department or state overall, and cite scheme allocations only from verified text passages (such as Budget Speeches or Demands for Grants).
+5. STRUCTURED EXECUTIVE BRIEFING FORMAT: Always format every response using this clean, structured layout:
 
 ### 📋 Executive Summary
 A clear, direct 1–2 sentence answer highlighting the primary takeaway, allocation, or catalog summary.
@@ -43,7 +46,7 @@ A clear, direct 1–2 sentence answer highlighting the primary takeaway, allocat
 ### 📑 Document Context & Observations
 Concise paragraph noting background context from the official publication, boundaries of the provided data, or relevant reference manuals.
 
-5. CLEAN READABILITY: Never output dense walls of text. Use bullet points with bold keywords (`* **Keyword:** ...`) and proper paragraph breaks.
+6. CLEAN READABILITY: Never output dense walls of text. Use bullet points with bold keywords (`* **Keyword:** ...`) and proper paragraph breaks.
 """
 
 
@@ -53,13 +56,15 @@ def call_gemini_api(prompt: str, model_name: str = "gemini-3-flash-preview") -> 
     if not api_key:
         raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY must be set in .env")
 
-    # Order models by live verified responsiveness & speed (3-flash-preview: ~1.9s, 3.6-flash: ~3.4s)
+    # Order models by live verified responsiveness & speed
     candidate_models = [
         model_name,
-        "gemini-3-flash-preview",
-        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
         "gemini-flash-latest",
-        "gemini-3.7-flash"
+        "gemini-1.5-pro",
+        "gemini-3.6-flash"
     ]
     seen = set()
     models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
@@ -121,8 +126,28 @@ def build_deterministic_briefing(query: str, evidence: EvidenceBundle) -> str:
         "",
         "### 🔍 Key Findings & Policy Provisions"
     ]
+    scheme = evidence.routing_metadata.get("scheme")
 
-    if evidence.sql_aggregations:
+    # 1. If asking about a specific scheme or narrative, prioritize official document passages!
+    if (scheme or evidence.query_type in ["rag", "hybrid"]) and evidence.passages:
+        for idx, p in enumerate(evidence.passages[:4], 1):
+            clean_title = sanitize_display_title(p.title or "Official Publication", category=p.category, financial_year=p.financial_year)
+            decoded = decode_shifted_pdf_text(p.content or "")
+            clean_content = " ".join(decoded.split())[:300]
+            lines.append(f"* **Official Record #{idx} ({clean_title}):** \"{clean_content}...\" [Source: {clean_title}, {p.financial_year}, Page {p.page_number}]")
+
+        # Include scheme-specific SQL line items if present
+        scheme_sql = [r for r in evidence.sql_records if r.get("scheme_name") and "General" not in str(r.get("scheme_name"))]
+        if scheme_sql:
+            lines.append("\n* **Scheme Financial Records:**")
+            for r in scheme_sql[:5]:
+                yr = r.get("financial_year", "N/A")
+                s_name = r.get("scheme_name")
+                be = r.get("budget_estimate_cr")
+                be_str = f"₹{be:,.2f} Cr" if be is not None else "N/A"
+                lines.append(f"  * **{s_name} ({yr}):** Allocation: {be_str} [Source: Demand for Grants, {yr}]")
+
+    elif evidence.sql_aggregations:
         agg = evidence.sql_aggregations
         yr = agg.get("financial_year", "State Financial Year")
         be = agg.get("total_budget_estimate_cr", 0.0)
@@ -139,14 +164,16 @@ def build_deterministic_briefing(query: str, evidence: EvidenceBundle) -> str:
         for r in evidence.sql_records[:10]:
             yr = r.get("financial_year", "N/A")
             dept = r.get("department")
+            scheme_item = r.get("scheme_name")
             be = r.get("budget_estimate_cr")
             re = r.get("revised_estimate_cr")
-            if dept:
-                be_str = f"₹{be:,.2f} Cr" if be is not None else "N/A"
-                re_str = f" | Revised: ₹{re:,.2f} Cr" if re is not None else ""
-                lines.append(f"  * **{dept} ({yr}):** Budget Estimate: {be_str}{re_str} [Source: {dept} Financial Record, {yr}]")
+            be_str = f"₹{be:,.2f} Cr" if be is not None else "N/A"
+            re_str = f" | Revised: ₹{re:,.2f} Cr" if re is not None else ""
+            if scheme_item and scheme_item != "General Departmental Allocation":
+                lines.append(f"  * **{scheme_item} ({yr}):** Allocation: {be_str}{re_str} [Source: {dept or 'State'} Budget Record, {yr}]")
+            elif dept:
+                lines.append(f"  * **{dept} ({yr}):** Department Budget Estimate: {be_str}{re_str} [Source: {dept} Financial Record, {yr}]")
             else:
-                be_str = f"₹{be:,.2f} Cr" if be is not None else "N/A"
                 lines.append(f"  * **Financial Year {yr}:** Total Allocation: {be_str} [Source: Annual Financial Statement, {yr}]")
 
     elif evidence.passages:

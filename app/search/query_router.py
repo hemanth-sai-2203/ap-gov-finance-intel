@@ -122,6 +122,44 @@ DEPARTMENT_HINTS = {
     "industries": "Industries & Commerce"
 }
 
+# Major Andhra Pradesh Government Schemes & their Parent Department
+SCHEME_HINTS = {
+    "amma vodi": {"official_name": "Jagananna Amma Vodi", "department": "School Education"},
+    "ammavodi": {"official_name": "Jagananna Amma Vodi", "department": "School Education"},
+    "rythu bharosa": {"official_name": "YSR Rythu Bharosa", "department": "Agriculture"},
+    "annadata sukhibhava": {"official_name": "Annadata Sukhibhava", "department": "Agriculture"},
+    "cheyutha": {"official_name": "YSR Cheyutha", "department": "Social Welfare"},
+    "aasara": {"official_name": "YSR Aasara", "department": "Social Welfare"},
+    "asara": {"official_name": "YSR Aasara", "department": "Social Welfare"},
+    "vidya deevena": {"official_name": "Jagananna Vidya Deevena", "department": "Higher Education"},
+    "vasathi deevena": {"official_name": "Jagananna Vasathi Deevena", "department": "Higher Education"},
+    "aarogyasri": {"official_name": "Dr. YSR Aarogyasri", "department": "Health & Family Welfare"},
+    "arogyasri": {"official_name": "Dr. YSR Aarogyasri", "department": "Health & Family Welfare"},
+    "nadu nedu": {"official_name": "Mana Badi Nadu-Nedu", "department": "School Education"},
+    "nethanna nestham": {"official_name": "YSR Nethanna Nestham", "department": "Industries & Commerce"},
+    "matsyakara bharosa": {"official_name": "YSR Matsyakara Bharosa", "department": "Fisheries / Animal Husbandry"},
+    "chedodu": {"official_name": "Jagananna Chedodu", "department": "Backward Classes Welfare"},
+    "vahana mitra": {"official_name": "YSR Vahana Mitra", "department": "Transport & R&B"},
+    "kapu nestham": {"official_name": "YSR Kapu Nestham", "department": "Backward Classes Welfare"},
+    "ebc nestham": {"official_name": "YSR EBC Nestham", "department": "Social Welfare"},
+    "sunna vaddi": {"official_name": "YSR Sunna Vaddi (Zero Interest)", "department": "Agriculture"},
+    "polavaram": {"official_name": "Polavaram Irrigation Project", "department": "Water Resources"},
+    "jalayagnam": {"official_name": "Jalayagnam Water Project", "department": "Water Resources"}
+}
+
+# Explicit State-level Total patterns
+STATE_TOTAL_PATTERNS = [
+    r'\bstate budget\b',
+    r'\boverall budget\b',
+    r'\btotal state budget\b',
+    r'\btotal budget of ap\b',
+    r'\btotal budget of andhra\b',
+    r'\bstate expenditure\b',
+    r'\btotal state outlay\b',
+    r'\btotal budget of the state\b',
+    r'\bstate-wide budget\b'
+]
+
 # Category hints
 CATEGORY_HINTS = {
     "manual": "finance_manual",
@@ -190,12 +228,50 @@ def extract_financial_years(query: str) -> List[str]:
     return cleaned
 
 
+def extract_scheme(query: str) -> Optional[Dict[str, str]]:
+    """Extracts known AP government welfare scheme from query if present."""
+    q_lower = query.lower()
+    for kw, scheme_info in SCHEME_HINTS.items():
+        if re.search(rf'\b{re.escape(kw)}\b', q_lower):
+            return {
+                "keyword": kw,
+                "scheme_name": scheme_info["official_name"],
+                "department": scheme_info["department"]
+            }
+    return None
+
+
+def is_state_total_query(query: str) -> bool:
+    """Checks if query specifically asks for total state-wide budget/expenditure."""
+    q_lower = query.lower()
+    # If explicitly matching state total patterns
+    if any(re.search(p, q_lower) for p in STATE_TOTAL_PATTERNS):
+        return True
+    # If query mentions "total budget" or "overall budget" but NO department and NO scheme
+    scheme = extract_scheme(query)
+    dept = None
+    for kw in DEPARTMENT_HINTS:
+        if re.search(rf'\b{kw}\b', q_lower):
+            dept = kw
+            break
+    if not scheme and not dept:
+        if re.search(r'\b(total budget|overall budget|state budget|annual budget)\b', q_lower):
+            return True
+    return False
+
+
 def extract_department(query: str) -> Optional[str]:
-    """Extracts likely department name from query."""
+    """Extracts likely department name from query or inferred from scheme."""
     q_lower = query.lower()
     for kw, dept_name in DEPARTMENT_HINTS.items():
         if re.search(rf'\b{kw}\b', q_lower):
             return dept_name
+            
+    # Infer parent department if a scheme is matched
+    scheme_match = extract_scheme(query)
+    if scheme_match:
+        return scheme_match["department"]
+
     return None
 
 
@@ -233,24 +309,30 @@ def classify_query(query: str) -> QueryType:
     has_numerical = any(re.search(p, q_lower) for p in NUMERICAL_PATTERNS)
     has_comparison = any(kw in q_lower for kw in COMPARISON_KEYWORDS)
     has_explanatory = any(kw in q_lower for kw in EXPLANATORY_KEYWORDS)
+    scheme_info = extract_scheme(query)
 
     # 3. Multi-year comparison
     if has_comparison or (len(years) > 1 and has_numerical):
         return QueryType.COMPARISON
 
-    # 4. Hybrid (asks for both numbers and qualitative explanation)
+    # 4. Scheme inquiry: Schemes have financial figures in speeches and policy guidelines
+    # Always route to HYBRID so both vector narratives (speeches, gazettes) and SQL scheme tables are queried.
+    if scheme_info:
+        return QueryType.HYBRID
+
+    # 5. Hybrid (asks for both numbers and qualitative explanation)
     if has_numerical and has_explanatory:
         return QueryType.HYBRID
 
-    # 5. SQL (clean numerical question with department or year)
+    # 6. SQL (clean numerical question with department or explicit state total)
     if has_numerical and not has_explanatory:
         return QueryType.SQL
 
-    # 6. Pure narrative / policy / guidelines / rules
+    # 7. Pure narrative / policy / guidelines / rules
     if has_explanatory and not has_numerical:
         return QueryType.RAG
 
-    # 7. Default fallback to HYBRID
+    # 8. Default fallback to HYBRID
     return QueryType.HYBRID
 
 
@@ -263,6 +345,16 @@ def expand_query(query: str) -> List[str]:
     q_lower = query.lower()
 
     synonym_map = {
+        "amma vodi": ["Jagananna Amma Vodi financial assistance to mothers", "School Education allocation", "direct benefit transfer DBT"],
+        "ammavodi": ["Jagananna Amma Vodi financial assistance", "School Education allocation"],
+        "rythu bharosa": ["YSR Rythu Bharosa input subsidy to farmers", "Agriculture budget allocation"],
+        "annadata sukhibhava": ["Annadata Sukhibhava farmer financial support", "Agriculture allocation"],
+        "cheyutha": ["YSR Cheyutha financial assistance to women", "Social Welfare"],
+        "aasara": ["YSR Aasara SHG loan reimbursement", "Social Welfare DWCRA"],
+        "vidya deevena": ["Jagananna Vidya Deevena fee reimbursement Higher Education"],
+        "vasathi deevena": ["Jagananna Vasathi Deevena boarding hostel charges"],
+        "aarogyasri": ["Dr. YSR Aarogyasri health care trust", "free medical treatment hospital"],
+        "nadu nedu": ["Mana Badi Nadu-Nedu school infrastructure transformation"],
         "school": ["School Education Department", "Major Head 2202 General Education"],
         "education": ["School Education", "Higher Education Department"],
         "farmer": ["Agriculture & Allied Sectors", "Rythu Bharosa", "PM-KISAN input subsidy"],
@@ -317,15 +409,19 @@ def route_query(query: str) -> Dict[str, Any]:
             "primary_year": None,
             "all_years": [],
             "department": None,
+            "scheme": None,
+            "is_state_total": False,
             "category_filter": None,
             "requires_sql": False,
             "requires_vector": False
         }
 
     years = extract_financial_years(normalized_q)
+    scheme_info = extract_scheme(normalized_q)
     department = extract_department(normalized_q)
     category = extract_category(normalized_q)
     expanded_queries = expand_query(normalized_q)
+    is_state_total = is_state_total_query(normalized_q)
 
     decision = {
         "original_query": query,
@@ -335,12 +431,15 @@ def route_query(query: str) -> Dict[str, Any]:
         "primary_year": years[0] if years else None,
         "all_years": years,
         "department": department,
+        "scheme": scheme_info["scheme_name"] if scheme_info else None,
+        "scheme_keyword": scheme_info["keyword"] if scheme_info else None,
+        "is_state_total": is_state_total,
         "category_filter": category,
         "requires_sql": q_type in [QueryType.SQL, QueryType.HYBRID, QueryType.COMPARISON, QueryType.CATALOG],
         "requires_vector": q_type != QueryType.CATALOG
     }
 
     logger.info(
-        f"Query routed -> Type: {q_type.value} | Years: {years} | Dept: {department} | Cat: {category} | Normalized: '{normalized_q}'"
+        f"Query routed -> Type: {q_type.value} | Years: {years} | Dept: {department} | Scheme: {decision['scheme']} | StateTotal: {is_state_total} | Cat: {category} | Normalized: '{normalized_q}'"
     )
     return decision

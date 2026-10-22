@@ -62,13 +62,15 @@ def get_department_allocation(
             db.close()
 
 
-def get_total_budget_by_year(
-    financial_year: str,
+def get_scheme_allocation(
+    scheme_name: str,
+    financial_year: Optional[str] = None,
     db: Optional[Session] = None
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """
-    Computes total budget estimates, revised estimates, and actual expenditure for a given year.
-    Uses SQL SUM aggregation.
+    Returns budget allocations for a specific scheme by matching scheme_name.
+    Optionally filtered by financial year.
+    Includes provenance join to DocumentModel.
     """
     close_db = False
     if db is None:
@@ -76,13 +78,106 @@ def get_total_budget_by_year(
         close_db = True
 
     try:
+        query = (
+            db.query(FinancialRecordModel, DocumentModel)
+            .outerjoin(DocumentModel, FinancialRecordModel.source_document_id == DocumentModel.id)
+            .filter(
+                (FinancialRecordModel.scheme_name.ilike(f"%{scheme_name}%")) |
+                (FinancialRecordModel.department.ilike(f"%{scheme_name}%"))
+            )
+        )
+        if financial_year:
+            query = query.filter(FinancialRecordModel.financial_year == financial_year)
+
+        rows = query.all()
+        results = []
+        for record, doc in rows:
+            results.append({
+                "record_id": record.id,
+                "financial_year": record.financial_year,
+                "department": record.department,
+                "scheme_name": record.scheme_name,
+                "head_of_account": record.head_of_account,
+                "budget_estimate_cr": float(record.budget_estimate_cr) if record.budget_estimate_cr is not None else None,
+                "revised_estimate_cr": float(record.revised_estimate_cr) if record.revised_estimate_cr is not None else None,
+                "actual_expenditure_cr": float(record.actual_expenditure_cr) if record.actual_expenditure_cr is not None else None,
+                "extra_details": record.extra_details,
+                "source_document_title": doc.title if doc else "N/A",
+                "source_url": doc.source_url if doc else "N/A",
+                "retrieval_method": "sql_scheme"
+            })
+        return results
+    finally:
+        if close_db:
+            db.close()
+
+
+def get_total_budget_by_year(
+    financial_year: str,
+    db: Optional[Session] = None
+) -> Dict[str, Any]:
+    """
+    Retrieves the authentic total state budget estimates for a given year.
+    Prioritizes official Macro-Fiscal 'Total Budget / Outlay' to avoid double/triple
+    counting component figures (Revenue Expenditure + Capital Expenditure + Deficits + Departments).
+    """
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 1. Check for official Total Budget / Outlay row in Macro-Fiscal records
+        macro_row = (
+            db.query(FinancialRecordModel)
+            .filter(
+                FinancialRecordModel.financial_year == financial_year,
+                FinancialRecordModel.scheme_name.ilike("%Total Budget%")
+            )
+            .first()
+        )
+        if macro_row and macro_row.budget_estimate_cr:
+            return {
+                "financial_year": financial_year,
+                "total_budget_estimate_cr": float(macro_row.budget_estimate_cr),
+                "total_revised_estimate_cr": float(macro_row.revised_estimate_cr) if macro_row.revised_estimate_cr else 0.0,
+                "total_actual_expenditure_cr": float(macro_row.actual_expenditure_cr) if macro_row.actual_expenditure_cr else 0.0,
+                "retrieval_method": "sql_official_outlay"
+            }
+
+        # 2. Check for Revenue Expenditure + Capital Expenditure sum (Total Outlay = Rev Exp + Cap Exp)
+        rev_cap = (
+            db.query(
+                func.sum(FinancialRecordModel.budget_estimate_cr).label("total_be"),
+                func.sum(FinancialRecordModel.revised_estimate_cr).label("total_re"),
+                func.sum(FinancialRecordModel.actual_expenditure_cr).label("total_actual")
+            )
+            .filter(
+                FinancialRecordModel.financial_year == financial_year,
+                FinancialRecordModel.scheme_name.in_(["Revenue Expenditure", "Capital Expenditure"])
+            )
+            .first()
+        )
+        if rev_cap and rev_cap.total_be and rev_cap.total_be > 1000.0:
+            return {
+                "financial_year": financial_year,
+                "total_budget_estimate_cr": float(rev_cap.total_be),
+                "total_revised_estimate_cr": float(rev_cap.total_re) if rev_cap.total_re else 0.0,
+                "total_actual_expenditure_cr": float(rev_cap.total_actual) if rev_cap.total_actual else 0.0,
+                "retrieval_method": "sql_rev_cap_sum"
+            }
+
+        # 3. Fallback: Sum distinct departments ONLY, strictly excluding Macro-Fiscal Indicators
         res = (
             db.query(
                 func.sum(FinancialRecordModel.budget_estimate_cr).label("total_be"),
                 func.sum(FinancialRecordModel.revised_estimate_cr).label("total_re"),
                 func.sum(FinancialRecordModel.actual_expenditure_cr).label("total_actual")
             )
-            .filter(FinancialRecordModel.financial_year == financial_year)
+            .filter(
+                FinancialRecordModel.financial_year == financial_year,
+                FinancialRecordModel.department != "Macro-Fiscal Indicators"
+            )
             .first()
         )
 
@@ -91,7 +186,7 @@ def get_total_budget_by_year(
             "total_budget_estimate_cr": float(res.total_be) if res and res.total_be else 0.0,
             "total_revised_estimate_cr": float(res.total_re) if res and res.total_re else 0.0,
             "total_actual_expenditure_cr": float(res.total_actual) if res and res.total_actual else 0.0,
-            "retrieval_method": "sql_aggregation"
+            "retrieval_method": "sql_department_sum"
         }
     finally:
         if close_db:
@@ -102,8 +197,8 @@ def get_total_budget_all_years(
     db: Optional[Session] = None
 ) -> List[Dict[str, Any]]:
     """
-    Computes total budget estimates, revised estimates, and actual expenditure
-    across all recorded financial years in Supabase SQL.
+    Computes authentic total state budget estimates across all recorded financial years in Supabase SQL.
+    Prioritizes official Macro-Fiscal 'Total Budget / Outlay' to avoid double/triple counting.
     """
     close_db = False
     if db is None:
@@ -111,30 +206,58 @@ def get_total_budget_all_years(
         close_db = True
 
     try:
-        rows = (
+        # 1. Fetch official macro total rows
+        macro_rows = (
+            db.query(FinancialRecordModel)
+            .filter(
+                FinancialRecordModel.financial_year.isnot(None),
+                FinancialRecordModel.scheme_name.ilike("%Total Budget%")
+            )
+            .order_by(FinancialRecordModel.financial_year.desc())
+            .all()
+        )
+        found_years = set()
+        results = []
+        for r in macro_rows:
+            if r.financial_year not in found_years and r.budget_estimate_cr:
+                found_years.add(r.financial_year)
+                results.append({
+                    "financial_year": r.financial_year,
+                    "budget_estimate_cr": float(r.budget_estimate_cr),
+                    "revised_estimate_cr": float(r.revised_estimate_cr) if r.revised_estimate_cr else 0.0,
+                    "actual_expenditure_cr": float(r.actual_expenditure_cr) if r.actual_expenditure_cr else 0.0,
+                    "source_document_title": f"AP State Annual Financial Statement ({r.financial_year})",
+                    "retrieval_method": "sql_official_outlay"
+                })
+
+        # 2. For any years without a macro row, sum department allocations excluding Macro-Fiscal Indicators
+        dept_rows = (
             db.query(
                 FinancialRecordModel.financial_year,
                 func.sum(FinancialRecordModel.budget_estimate_cr).label("total_be"),
                 func.sum(FinancialRecordModel.revised_estimate_cr).label("total_re"),
                 func.sum(FinancialRecordModel.actual_expenditure_cr).label("total_actual")
             )
-            .filter(FinancialRecordModel.financial_year.isnot(None))
+            .filter(
+                FinancialRecordModel.financial_year.isnot(None),
+                FinancialRecordModel.department != "Macro-Fiscal Indicators"
+            )
             .group_by(FinancialRecordModel.financial_year)
             .order_by(FinancialRecordModel.financial_year.desc())
             .all()
         )
+        for yr, be, re, ac in dept_rows:
+            if yr not in found_years and be:
+                results.append({
+                    "financial_year": yr,
+                    "budget_estimate_cr": float(be) if be else 0.0,
+                    "revised_estimate_cr": float(re) if re else 0.0,
+                    "actual_expenditure_cr": float(ac) if ac else 0.0,
+                    "source_document_title": f"AP State Annual Financial Statement ({yr})",
+                    "retrieval_method": "sql_department_sum"
+                })
 
-        return [
-            {
-                "financial_year": yr,
-                "budget_estimate_cr": float(be) if be else 0.0,
-                "revised_estimate_cr": float(re) if re else 0.0,
-                "actual_expenditure_cr": float(ac) if ac else 0.0,
-                "source_document_title": f"AP State Annual Financial Statement ({yr})",
-                "retrieval_method": "sql_multi_year_aggregation"
-            }
-            for yr, be, re, ac in rows
-        ]
+        return results
     finally:
         if close_db:
             db.close()

@@ -23,6 +23,7 @@ from app.search.bm25_search import bm25_search
 from app.core.text_decoder import decode_shifted_pdf_text, sanitize_display_title
 from app.search.sql_engine import (
     get_department_allocation,
+    get_scheme_allocation,
     get_total_budget_by_year,
     get_total_budget_all_years,
     compare_department_across_years,
@@ -69,36 +70,56 @@ class EvidenceBundle:
         sections = []
 
         # 1. Catalog / Metadata records
+        sql_lines = []
         if self.query_type == "catalog" and self.sql_records:
-            sections.append("=== OFFICIAL AP GOVERNMENT DOCUMENT CATALOG ===")
+            sql_lines.append("=== OFFICIAL AP GOVERNMENT DOCUMENT CATALOG ===")
             for r in self.sql_records[:30]:
                 title = r.get("title", "Document")
                 cat = r.get("category", "N/A")
                 yr = r.get("financial_year", "N/A")
                 pages = r.get("total_pages", "N/A")
-                sections.append(f"• Document: {title} | Category: {cat} | Financial Year: {yr} | Pages: {pages}")
+                sql_lines.append(f"• Document: {title} | Category: {cat} | Financial Year: {yr} | Pages: {pages}")
 
         # 2. Structured SQL context (financial data)
         elif self.sql_records:
-            sections.append("=== STRUCTURED FINANCIAL DATA (VERIFIED SQL) ===")
+            sql_lines.append("=== STRUCTURED FINANCIAL DATA (VERIFIED SQL) ===")
             for r in self.sql_records:
                 yr = r.get("financial_year", "N/A")
                 dept = r.get("department", "N/A")
+                scheme = r.get("scheme_name")
+                scheme_str = f" | Scheme: {scheme}" if scheme else " | Scheme: Department-wide / General"
                 be = r.get("budget_estimate_cr", "N/A")
                 re = r.get("revised_estimate_cr", "N/A")
-                sections.append(f"Department: {dept} | Year: {yr} | Budget Estimate: Rs. {be} Cr | Revised: Rs. {re} Cr")
+                sql_lines.append(f"Department: {dept}{scheme_str} | Year: {yr} | Budget Estimate: Rs. {be} Cr | Revised: Rs. {re} Cr")
 
         if self.sql_aggregations:
-            sections.append("=== AGGREGATE SUMMARY (SQL) ===")
+            sql_lines.append("=== AGGREGATE SUMMARY (SQL) ===")
             for k, v in self.sql_aggregations.items():
-                sections.append(f"{k}: {v}")
+                sql_lines.append(f"{k}: {v}")
 
         # 3. Text Passages from Weaviate Reranker
+        passage_lines = []
         if self.passages:
-            sections.append("\n=== OFFICIAL GOVERNMENT DOCUMENT CITATIONS ===")
+            passage_lines.append("=== OFFICIAL GOVERNMENT DOCUMENT CITATIONS ===")
             for p in self.passages[:max_passages]:
-                header = f"[{p.rank}] Source: \"{p.title}\" | Category: {p.category} | Year: {p.financial_year} | Page: {p.page_number} (Relevance Score: {p.rerank_score:.3f})"
-                sections.append(f"{header}\n\"{p.content}\"\n")
+                clean_title = sanitize_display_title(p.title or "Official AP Government Document", category=p.category, financial_year=p.financial_year)
+                decoded_content = decode_shifted_pdf_text(p.content or "")
+                header = f"[{p.rank}] Source: \"{clean_title}\" | Category: {p.category} | Year: {p.financial_year} | Page: {p.page_number} (Relevance Score: {p.rerank_score:.3f})"
+                passage_lines.append(f"{header}\n\"{decoded_content}\"\n")
+
+        # Prioritize passages when asking about schemes or policy narratives
+        is_scheme_or_narrative = bool(self.routing_metadata.get("scheme")) or self.query_type in ["rag", "hybrid"]
+        if is_scheme_or_narrative and passage_lines:
+            sections.extend(passage_lines)
+            if sql_lines:
+                sections.append("\n=== SUPPLEMENTARY TABULAR RECORDS ===")
+                sections.extend(sql_lines)
+        else:
+            if sql_lines:
+                sections.extend(sql_lines)
+            if passage_lines:
+                sections.append("")
+                sections.extend(passage_lines)
 
         return "\n".join(sections)
 
@@ -132,6 +153,9 @@ def retrieve_evidence(
     year = force_year or routing["primary_year"]
     category = force_category or routing["category_filter"]
     dept = routing["department"]
+    scheme = routing.get("scheme")
+    scheme_kw = routing.get("scheme_keyword")
+    is_state_total = routing.get("is_state_total", False)
 
     evidence = EvidenceBundle(
         query=query,
@@ -151,14 +175,22 @@ def retrieve_evidence(
                     evidence.sql_records = get_document_catalog(category=category, financial_year=year, limit=40)
                 elif q_type == QueryType.COMPARISON and dept:
                     evidence.sql_records = compare_department_across_years(dept)
-                elif dept:
-                    evidence.sql_records = get_department_allocation(dept, financial_year=year)
-                elif "total" in normalized_query.lower() or "budget" in normalized_query.lower():
+                elif scheme or scheme_kw:
+                    target_scheme = scheme_kw or scheme
+                    scheme_records = get_scheme_allocation(target_scheme, financial_year=year)
+                    if scheme_records:
+                        evidence.sql_records = scheme_records
+                    elif dept:
+                        # Fallback to parent department allocation
+                        evidence.sql_records = get_department_allocation(dept, financial_year=year)
+                elif is_state_total:
                     if year:
                         evidence.sql_aggregations = get_total_budget_by_year(year)
                     else:
                         evidence.sql_records = get_total_budget_all_years()
-                elif year:
+                elif dept:
+                    evidence.sql_records = get_department_allocation(dept, financial_year=year)
+                elif year and is_state_total:
                     evidence.sql_aggregations = get_total_budget_by_year(year)
             except Exception as e:
                 logger.warning(f"SQL execution encountered notice: {e}")
@@ -166,8 +198,10 @@ def retrieve_evidence(
         # 3. Execute Hybrid / Vector retrieval if textual narrative or hybrid
         if routing["requires_vector"]:
             try:
+                # Use enriched expanded query if available for enhanced recall
+                search_query = routing.get("expanded_queries", [normalized_query])[-1] if routing.get("expanded_queries") else normalized_query
                 raw_results = hybrid_search(
-                    query=normalized_query,
+                    query=search_query,
                     top_k=top_k,
                     alpha=alpha,
                     financial_year=year,

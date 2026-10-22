@@ -31,6 +31,7 @@ from app.search.hybrid_search import hybrid_search, get_weaviate_client
 from app.search.reranker import get_reranker
 from app.search.sql_engine import (
     get_department_allocation,
+    get_scheme_allocation,
     get_total_budget_by_year,
     get_top_departments_by_allocation,
     compare_department_across_years,
@@ -380,6 +381,22 @@ def budget_department(
     results = get_department_allocation(department, financial_year=financial_year, db=db)
     return {
         "department": department,
+        "financial_year": financial_year,
+        "records_count": len(results),
+        "allocations": results
+    }
+
+
+@app.get("/api/budget/scheme", tags=["Budget (SQL)"])
+def budget_scheme(
+    scheme: str = Query(..., description="e.g. Amma Vodi, Rythu Bharosa, Cheyutha"),
+    financial_year: Optional[str] = Query(None, description="e.g. 2024-25"),
+    db: Session = Depends(get_db)
+):
+    """Returns budget allocations for a specific scheme (Deterministic SQL)."""
+    results = get_scheme_allocation(scheme, financial_year=financial_year, db=db)
+    return {
+        "scheme": scheme,
         "financial_year": financial_year,
         "records_count": len(results),
         "allocations": results
