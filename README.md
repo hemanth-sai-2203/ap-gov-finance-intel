@@ -13,14 +13,16 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
 ```
                   ┌─────────────────────────────────────────────────────────┐
                   │          USER NATURAL LANGUAGE QUERY                   │
-                  │   "What are the rules for re-appropriation of funds?"   │
+                  │   "What is the budget for irrigation across all years?" │
                   └───────────────────────────┬─────────────────────────────┘
                                               │
                                               ▼
                   ┌─────────────────────────────────────────────────────────┐
-                  │                 QUERY ROUTER & EXPANDER                 │
+                  │         INTELLIGENT QUERY ROUTER & EXPANDER             │
                   │   Classifies: CATALOG | SQL | RAG | HYBRID | COMPARISON │
-                  │   Injects AP Finance Terminology & Financial Years      │
+                  │   • Typo & Phonetic Tolerance ('budjet', 'accross')     │
+                  │   • Scope Guard: Schemes vs Macro Totals                │
+                  │   • Temporal Disambiguation: Multi-Year vs Single-Year  │
                   └──────────────┬───────────────────────────┬──────────────┘
                                  │                           │
                    [Metadata / Numerical]            [Semantic / Policy]
@@ -29,11 +31,12 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
             ┌───────────────────────────────┐   ┌──────────────────────────────┐
             │     DETERMINISTIC SQL ENGINE   │   │     HYBRID RETRIEVAL ENGINE   │
             │     (Supabase PostgreSQL)     │   │     (Weaviate Cloud)         │
-            │  • Budget Estimates (BE)      │   │  • 768-dim Dense Vector      │
-            │  • Revised Estimates (RE)     │   │  • BM25 Keyword Search       │
-            │  • Actual Expenditure         │   │  • Reciprocal Rank Fusion    │
-            │  • Document Metadata Catalog  │   └──────────────┬───────────────┘
-            └──────────────┬────────────────┘                  │
+            │  • Official Macro Outlays     │   │  • 768-dim Dense Vector      │
+            │  • Department Alias Matching  │   │  • BM25 Keyword Search       │
+            │  • Multi-Year Aggregations    │   │  • Stop-Word Filtering       │
+            │  • Scheme Line Items          │   │  • PDF Font Unscrambler      │
+            └──────────────┬────────────────┘   └──────────────┬───────────────┘
+                           │                                   │
                            │                                   ▼
                            │                    ┌──────────────────────────────┐
                            │                    │    CROSS-ENCODER RERANKER    │
@@ -54,6 +57,7 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
                   │              (Google Gemini 2.5 / 3.7 Flash)            │
                   │  • Anti-Hallucination Strict Evidence System Prompt     │
                   │  • Executive Summary + Key Findings + Page Citations    │
+                  │  • Deterministic Dual-Channel Fallback Briefing         │
                   └──────────────────────────┬──────────────────────────────┘
                                              │
                                              ▼
@@ -65,13 +69,16 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
 
 ---
 
-## 🚀 Key Capabilities
+## 🚀 Key Capabilities & Architecture Highlights
 
-- **Multi-Route Intent Classification**: Intelligently routes queries to **Deterministic SQL** (for math/totals), **Vector/BM25 Semantic Search** (for rules and policy narratives), **Document Catalog** (for publications listing), or **Hybrid Fusion** (for multi-dimensional queries).
-- **Hybrid Retrieval with Reciprocal Rank Fusion (RRF)**: Combines 768-dimensional dense semantic vectors (`bge-base-en-v1.5`) with sparse BM25 lexical search for high precision on government terminology.
-- **Two-Stage Cross-Encoder Reranking**: Re-scores top candidates using `cross-encoder/ms-marco-MiniLM-L-6-v2` to eliminate irrelevant context chunks before synthesis.
-- **Strict Anti-Hallucination Prompting**: Mandates that every assertion and figure is backed by exact document provenance citations. Prevents fabricated budget figures.
-- **Zero Ingestion Vectors in SQL**: Clean database separation where vector embeddings reside in **Weaviate Cloud** (10GB) while relational metadata and tabular budget numbers reside in **Supabase PostgreSQL**.
+- **Multi-Route Intent Classification**: Intelligently routes queries to **Deterministic SQL** (for mathematical calculations and totals), **Vector/BM25 Semantic Search** (for rules and policy narratives), **Document Catalog** (for publications listing), or **Hybrid Fusion** (for multi-dimensional queries).
+- **Scope & Entity Guard**: Enforces strict boundaries between state-wide totals and individual welfare schemes (*Amma Vodi, Rythu Bharosa, Cheyutha, Polavaram*), eliminating accidental state-budget dumps.
+- **Double-Counting Elimination**: Solves historical ledger discrepancies by prioritizing verified macro-fiscal outlay figures (~₹2.79–2.94 Lakh Cr) and filtering out sub-aggregates and deficit rows.
+- **Flexible Department Alias Resolution**: Normalizes diverse database nomenclature (e.g. mapping `"Health & Family Welfare"` to `'Health'` and `'Health, Medical & Family Welfare'`, or `"Water Resources"` to `'Irrigation'`).
+- **Shifted-Font PDF Unscrambler**: Automatically detects and decodes custom font subset artifacts (+1 character shifts like `IFBMUI` $\rightarrow$ `HEALTH`, `SFDPSET` $\rightarrow$ `RECORDS`) embedded in official government PDF publications.
+- **Phonetic & Typo Tolerance**: Automatically corrects common typos (`accross`, `budjet`, `alocation`, `irigation`, `polavram`) before query routing.
+- **Hybrid Retrieval with Reciprocal Rank Fusion (RRF)**: Combines 768-dimensional dense semantic vectors (`bge-base-en-v1.5`) with sparse BM25 lexical search and cross-encoder reranking (`ms-marco-MiniLM-L-6-v2`).
+- **Harmonious Dual-Channel Briefings**: Fallback and deterministic briefings present both verified numerical ledger items and official document text excerpts together.
 
 ---
 
@@ -91,22 +98,25 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
 |---|---|---|
 | `budget_speech` | Annual Budget Speeches by Finance Ministers | Budget Speech 2026-27, 2024-25, 2021-22 |
 | `finance_manual` | Rules, Codal Provisions, Treasury Guides | A.P. Budget Manual, AP Financial Code, Treasury Code |
-| `departmental_estimates` | Volumes I through VIII Detailed Budget Estimates | Vol III (Demands 1–17), Vol I (AFS), Vol IV (Public Accounts) |
-| `frbm_compliance` | Fiscal Responsibility and Budget Management Statements | Medium Term Fiscal Policy Statements, Compliance Reviews |
-| `prc_volumes` | Pay Revision Commission Reports & Scales | 11th PRC Comprehensive Reports, Pay Scales & Allowances |
+| `budget_volumes` | Volumes I through VIII Detailed Budget Estimates | Vol III (Demands 1–17), Vol I (AFS), Vol IV (Public Accounts) |
+| `frbm_report` | Fiscal Responsibility and Budget Management Statements | Medium Term Fiscal Policy Statements, Compliance Reviews |
+| `prc_report` | Pay Revision Commission Reports & Scales | 11th PRC Comprehensive Reports, Pay Scales & Allowances |
 | `guidelines_circulars`| Official Government Memos and Guidelines | Comprehensive Budget Release Order (CBRO), Smart Metering |
 | `socio_economic_survey`| State-wide Economic Performance Overviews | Socio-Economic Survey Reports (2017–2025) |
 
 ---
 
-## 🏗️ Detailed System Architecture
+## 🏗️ Detailed Pipeline Stages
 
-### 1. Ingestion Pipeline
+### 1. Ingestion & Preprocessing
 ```
 [Raw PDFs from apfinance.gov.in]
              │
              ▼
    [PyMuPDF / pdfplumber] ──> Extracts text & page boundaries
+             │
+             ▼
+    [Shifted-Font Decoder] ──> Unscrambles +1 character code subsets
              │
              ▼
     [Telugu-Script Filter] ──> Skips pure non-English scans
@@ -125,17 +135,18 @@ Instead of manual search through tens of thousands of PDF pages, users can ask n
 
 ### 2. Retrieval & Generation Pipeline
 1. **Query Router (`app/search/query_router.py`)**:
-   - Parses temporal tags (`2026-27`, `2021`), department names, and document categories.
-   - Enriches user queries with domain synonyms (e.g., `"re-appropriation"` → `"powers of reappropriation savings transfer AP Financial Code"`).
+   - Parses temporal tags (`2026-27`, `2024-25`, `across all years`).
+   - Normalizes phonetic typos and resolves department/scheme entities.
+   - Enriches user queries with domain synonyms (e.g. `"re-appropriation"` → `"powers of reappropriation savings transfer AP Financial Code"`).
    - Directs query to `CATALOG`, `SQL`, `RAG`, `HYBRID`, or `COMPARISON`.
 
 2. **Unified Retrieval (`app/search/engine.py`)**:
    - Pulls exact numbers from PostgreSQL tables using SQL `SUM`, `AVG`, and `GROUP BY`.
-   - Runs Hybrid search (`alpha=0.65` dense, `0.35` BM25) on Weaviate Cloud.
+   - Runs Hybrid search (`alpha=0.65` dense, `0.35` BM25) on Weaviate Cloud (with PostgreSQL failover).
    - Cross-encoder reranks top 15 candidate passages down to top 5 high-relevance evidence passages.
 
 3. **Grounded Synthesis (`app/core/llm_engine.py`)**:
-   - Injects structured evidence into a strict system prompt.
+   - Injects structured evidence into a strict anti-hallucination system prompt.
    - Generates an executive briefing layout via Google Gemini 2.5/3.7 Flash.
    - Extracts clickable source badges with page numbers for UI rendering.
 
@@ -150,6 +161,7 @@ Gov_intelligence_platform/
 │   │   ├── config.py              # Pydantic Settings & Environment Variables
 │   │   ├── llm_engine.py          # Gemini Synthesis & Citation Formatter
 │   │   ├── query_pipeline.py      # End-to-End Intelligence Pipeline Coordinator
+│   │   ├── text_decoder.py        # Shifted-Font PDF Unscrambler & Title Sanitizer
 │   │   └── weaviate_client.py     # Weaviate Cloud Connection Provider
 │   ├── db/
 │   │   ├── models.py              # SQLAlchemy Schema (documents, chunks, financial_records)
@@ -162,9 +174,10 @@ Gov_intelligence_platform/
 │   │   ├── bm25_search.py         # BM25 Lexical Keyword Search
 │   │   ├── engine.py              # Unified Retrieval Orchestrator
 │   │   ├── hybrid_search.py       # Dense Vector + BM25 with RRF Fusion
-│   │   ├── query_router.py        # Intent Classification & Query Expander
+│   │   ├── postgres_search.py     # Degraded-mode PostgreSQL Chunk Search with Stop-word Filter
+│   │   ├── query_router.py        # Intent Classification, Expander & Typo Normalizer
 │   │   ├── reranker.py            # Cross-Encoder (ms-marco-MiniLM-L-6-v2)
-│   │   ├── sql_engine.py          # Deterministic SQL Analytics & Catalog Queries
+│   │   ├── sql_engine.py          # Deterministic SQL Analytics & Department Alias Matcher
 │   │   └── vector_search.py       # Pure Dense Vector Search
 │   ├── ui/
 │   │   └── index.html             # Interactive Glassmorphic Web Dashboard
@@ -189,6 +202,7 @@ Gov_intelligence_platform/
 | `GET` | `/api/documents` | List ingested publications filtered by year or category |
 | `GET` | `/api/budget/total` | Aggregated total budget estimate and expenditure for a financial year |
 | `GET` | `/api/budget/department` | Specific department budget allocation across schemes |
+| `GET` | `/api/budget/scheme` | Scheme-specific budget allocation line items |
 | `GET` | `/api/budget/top-departments` | Top departments ranked by budget allocation |
 
 ### Example Request (`POST /api/query`):
@@ -203,15 +217,15 @@ Gov_intelligence_platform/
 ```json
 {
   "query": "What are the rules for re-appropriation of budget funds under the AP Financial Code?",
-  "query_type": "rag",
+  "query_type": "hybrid",
   "answer": "### 📋 Executive Summary\nRe-appropriation of funds under the Andhra Pradesh Financial Code involves the transfer of savings from one head of account to another within the same grant...\n\n### 🔍 Key Findings & Policy Provisions\n* **Sanction Powers:** Re-appropriation sanctions cannot be made between different Grants or from Capital to Revenue accounts [Source: AP Budget Manual 2011, General, Page 42].\n* **Savings Transfer Restrictions:** No re-appropriation is permissible from salaries to non-salary heads without Finance Department concurrence.\n\n### 📑 Document Context & Observations\nGoverned under Chapter IX of the Andhra Pradesh Budget Manual and Article 324 of the AP Financial Code Volume I.",
   "citations": [
     {
-      "title": "A.P. Budget Manual (2011)",
-      "financial_year": "2011-12",
+      "title": "A.P. Budget Manual",
+      "financial_year": "General",
       "page_number": 42,
       "relevance_score": 0.892,
-      "citation_label": "[Source: A.P. Budget Manual (2011), 2011-12, Page 42]"
+      "citation_label": "[Source: A.P. Budget Manual, General, Page 42]"
     }
   ],
   "model_used": "gemini-2.5-flash"
