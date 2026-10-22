@@ -173,7 +173,7 @@ def retrieve_evidence(
             try:
                 if q_type == QueryType.CATALOG:
                     evidence.sql_records = get_document_catalog(category=category, financial_year=year, limit=40)
-                elif q_type == QueryType.COMPARISON and dept:
+                elif (q_type == QueryType.COMPARISON or routing.get("is_multi_year")) and dept:
                     evidence.sql_records = compare_department_across_years(dept)
                 elif scheme or scheme_kw:
                     target_scheme = scheme_kw or scheme
@@ -182,14 +182,25 @@ def retrieve_evidence(
                         evidence.sql_records = scheme_records
                     elif dept:
                         # Fallback to parent department allocation
-                        evidence.sql_records = get_department_allocation(dept, financial_year=year)
+                        dept_records = get_department_allocation(dept, financial_year=year)
+                        if dept_records:
+                            evidence.sql_records = dept_records
+                        else:
+                            evidence.sql_records = get_department_allocation(dept, financial_year=None)
                 elif is_state_total:
-                    if year:
+                    if year and not routing.get("is_multi_year"):
                         evidence.sql_aggregations = get_total_budget_by_year(year)
                     else:
                         evidence.sql_records = get_total_budget_all_years()
                 elif dept:
-                    evidence.sql_records = get_department_allocation(dept, financial_year=year)
+                    dept_records = get_department_allocation(dept, financial_year=year)
+                    if dept_records:
+                        evidence.sql_records = dept_records
+                    elif year:
+                        # Fallback to all available years for this department if requested year is not in tabular DB
+                        all_year_records = get_department_allocation(dept, financial_year=None)
+                        if all_year_records:
+                            evidence.sql_records = all_year_records
                 elif year and is_state_total:
                     evidence.sql_aggregations = get_total_budget_by_year(year)
             except Exception as e:
@@ -200,11 +211,12 @@ def retrieve_evidence(
             try:
                 # Use enriched expanded query if available for enhanced recall
                 search_query = routing.get("expanded_queries", [normalized_query])[-1] if routing.get("expanded_queries") else normalized_query
+                search_year = None if routing.get("is_multi_year") else year
                 raw_results = hybrid_search(
                     query=search_query,
                     top_k=top_k,
                     alpha=alpha,
-                    financial_year=year,
+                    financial_year=search_year,
                     category=category,
                     use_reranker=use_reranker
                 )
@@ -216,6 +228,15 @@ def retrieve_evidence(
                     logger.error(f"BM25 fallback search also failed: {bm_err}")
                     raw_results = []
 
+            # Domain keyword relevance filter: ensure passages have subject relevance
+            subject_terms = []
+            if dept:
+                subject_terms.append(dept.lower())
+                if "water" in dept.lower() or "resources" in dept.lower():
+                    subject_terms.extend(["water", "irrigation", "project", "projects", "dam", "canal"])
+            if scheme:
+                subject_terms.append(scheme.lower())
+            
             # Convert to structured RetrievedPassage dataclass with text decoding and title sanitization
             for rank, r in enumerate(raw_results, 1):
                 raw_t = r.get("title") or "Official AP Government Document"
@@ -225,6 +246,12 @@ def retrieve_evidence(
                 
                 # Unscramble +1 shifted font encoding
                 decoded_content = decode_shifted_pdf_text(r.get("content", ""))
+
+                # If specific subject/department was queried, verify passage mentions at least one relevant domain term
+                if subject_terms:
+                    text_to_check = f"{clean_t} {decoded_content}".lower()
+                    if not any(term in text_to_check for term in subject_terms):
+                        continue
 
                 p = RetrievedPassage(
                     rank=rank,

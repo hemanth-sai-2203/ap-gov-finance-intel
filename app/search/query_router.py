@@ -55,7 +55,11 @@ COMPARISON_KEYWORDS = [
     "compare", "comparison", "versus", "vs", "difference",
     "increase", "decrease", "growth", "trend", "year-over-year",
     "year on year", "yoy", "more than", "less than", "higher",
-    "lower", "rose", "fell", "changed"
+    "lower", "rose", "fell", "changed",
+    "across all", "all financial year", "all financial years",
+    "all available years", "across years", "over the years",
+    "through the years", "across all years", "all years available",
+    "available with you"
 ]
 
 # Explanatory / policy intent keywords
@@ -107,7 +111,13 @@ DEPARTMENT_HINTS = {
     "medical": "Health & Family Welfare",
     "finance": "Finance",
     "irrigation": "Water Resources",
+    "major irrigation": "Water Resources",
+    "minor irrigation": "Water Resources",
     "water": "Water Resources",
+    "dam": "Water Resources",
+    "dams": "Water Resources",
+    "canal": "Water Resources",
+    "canals": "Water Resources",
     "transport": "Transport & R&B",
     "roads": "Transport & R&B",
     "energy": "Energy",
@@ -144,7 +154,11 @@ SCHEME_HINTS = {
     "ebc nestham": {"official_name": "YSR EBC Nestham", "department": "Social Welfare"},
     "sunna vaddi": {"official_name": "YSR Sunna Vaddi (Zero Interest)", "department": "Agriculture"},
     "polavaram": {"official_name": "Polavaram Irrigation Project", "department": "Water Resources"},
-    "jalayagnam": {"official_name": "Jalayagnam Water Project", "department": "Water Resources"}
+    "jalayagnam": {"official_name": "Jalayagnam Water Project", "department": "Water Resources"},
+    "major irrigation": {"official_name": "Major and Medium Irrigation", "department": "Water Resources"},
+    "minor irrigation": {"official_name": "Minor Irrigation", "department": "Water Resources"},
+    "major and minor irrigation": {"official_name": "Major and Minor Irrigation Projects", "department": "Water Resources"},
+    "irrigation projects": {"official_name": "Irrigation Projects", "department": "Water Resources"}
 }
 
 # Explicit State-level Total patterns
@@ -363,6 +377,10 @@ def expand_query(query: str) -> List[str]:
         "medical": ["Health, Medical & Family Welfare Department"],
         "hospital": ["Health & Family Welfare healthcare infrastructure"],
         "roads": ["Transport, Roads & Buildings Department"],
+        "irrigation": ["Water Resources Department", "Major and Medium Irrigation", "Minor Irrigation", "Major Head 4700 Capital Outlay on Major Irrigation", "Major Head 4702 Minor Irrigation", "Polavaram Irrigation Project", "Jalayagnam"],
+        "water": ["Water Resources Department", "Major Head 2700", "Major Head 2701", "Major Head 2702"],
+        "project": ["Irrigation Projects", "Polavaram", "Water Resources infrastructure"],
+        "projects": ["Irrigation Projects", "Water Resources infrastructure", "Major and Minor Irrigation"],
         "cbro": ["Comprehensive Budget Release Order (CBRO) guidelines quarterly regulation"],
         "manual": ["A.P. Budget Manual rules and procedures"],
         "reappropriation": ["re-appropriation of funds transfer of savings sanction powers AP Financial Code"],
@@ -423,13 +441,22 @@ def route_query(query: str) -> Dict[str, Any]:
     expanded_queries = expand_query(normalized_q)
     is_state_total = is_state_total_query(normalized_q)
 
+    is_multi_year_request = (
+        q_type == QueryType.COMPARISON or
+        any(phrase in normalized_q for phrase in [
+            "across all", "all financial year", "all financial years",
+            "all years", "all available years", "available with you"
+        ])
+    )
+
     decision = {
         "original_query": query,
         "normalized_query": normalized_q,
         "expanded_queries": expanded_queries,
         "query_type": q_type,
-        "primary_year": years[0] if years else None,
+        "primary_year": None if is_multi_year_request else (years[0] if years else None),
         "all_years": years,
+        "is_multi_year": is_multi_year_request,
         "department": department,
         "scheme": scheme_info["scheme_name"] if scheme_info else None,
         "scheme_keyword": scheme_info["keyword"] if scheme_info else None,

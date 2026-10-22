@@ -26,6 +26,21 @@ from app.db.models import DocumentChunkModel, DocumentModel
 logger = logging.getLogger(__name__)
 
 
+COMMON_STOP_WORDS = {
+    "what", "which", "where", "when", "who", "whom", "whose", "why", "how",
+    "all", "any", "both", "each", "few", "more", "most", "other", "some", "such",
+    "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very",
+    "can", "will", "just", "should", "now", "the", "and", "for", "with", "from",
+    "into", "during", "including", "until", "against", "among", "throughout",
+    "despite", "towards", "upon", "concerning", "to", "in", "of", "by", "at",
+    "on", "are", "is", "was", "were", "be", "been", "being", "have", "has",
+    "had", "having", "do", "does", "did", "doing", "you", "your", "yours",
+    "yourself", "yourselves", "across", "available", "year", "years", "financial",
+    "total", "allocated", "allocation", "allocations", "budget", "budgets", "amount",
+    "tell", "give", "show", "find", "get", "please"
+}
+
+
 def postgres_hybrid_search(
     query: str,
     top_k: int = 5,
@@ -39,19 +54,7 @@ def postgres_hybrid_search(
     Degraded-mode search directly over PostgreSQL document_chunks table.
 
     Uses ILIKE substring matching across content + title when Weaviate is unavailable.
-    Applies cross-encoder reranking if enabled.
-
-    Args:
-        query: User search query
-        top_k: Final number of results to return
-        candidate_pool_size: Candidate pool size before reranking
-        financial_year: Optional year filter
-        category: Optional category filter
-        use_reranker: Whether to apply Cross-Encoder reranking
-        db: Optional existing SQLAlchemy session
-
-    Returns:
-        List of result dicts compatible with the EvidenceBundle passage format.
+    Filters out stop-words to prevent false matches on generic pronouns and prepositions.
     """
     close_db = False
     if db is None:
@@ -59,14 +62,18 @@ def postgres_hybrid_search(
         close_db = True
 
     try:
-        # Tokenize query into keywords for multi-term ILIKE matching
-        keywords = [kw.strip() for kw in query.split() if len(kw.strip()) > 2]
-        if not keywords:
-            keywords = [query]
+        # Tokenize query into meaningful content keywords (stripping stop words)
+        raw_words = [kw.strip(' ,.:;\'"?!()[]{}') for kw in query.split() if len(kw.strip(' ,.:;\'"?!()[]{}')) > 2]
+        content_keywords = [w for w in raw_words if w.lower() not in COMMON_STOP_WORDS]
+        
+        # If all words were stop words, fall back to non-stop raw words
+        search_terms = content_keywords if content_keywords else raw_words
+        if not search_terms:
+            search_terms = [query]
 
-        # Build keyword conditions: content OR title ILIKE each keyword
+        # Build keyword conditions: content OR title ILIKE each content keyword
         conditions = []
-        for kw in keywords:
+        for kw in search_terms:
             pattern = f"%{kw}%"
             conditions.append(DocumentChunkModel.content.ilike(pattern))
 
@@ -102,10 +109,13 @@ def postgres_hybrid_search(
 
         candidates = []
         for chunk, doc in rows:
-            # Score by counting keyword matches in content (simple relevance proxy)
+            # Score by counting genuine content keyword matches
             content_lower = (chunk.content or "").lower()
-            keyword_hits = sum(1 for kw in keywords if kw.lower() in content_lower)
-            simple_score = keyword_hits / max(len(keywords), 1)
+            keyword_hits = sum(1 for kw in search_terms if kw.lower() in content_lower)
+            if keyword_hits == 0:
+                continue
+
+            simple_score = keyword_hits / max(len(search_terms), 1)
 
             candidates.append({
                 "weaviate_id": f"pg_{chunk.id}",
