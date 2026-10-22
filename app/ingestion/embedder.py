@@ -48,6 +48,9 @@ def _embed_via_hf_api(texts: List[str], model_name: str = DEFAULT_MODEL_NAME) ->
                         if isinstance(data[0], (int, float)):
                             data = [data]
                         return data
+                elif response.status_code in (401, 402, 403):
+                    logger.info(f"HF API returned status {response.status_code} ({response.text[:80]}). Immediately falling back to local embedder.")
+                    return None
                 else:
                     logger.debug(f"HF API endpoint {url} returned {response.status_code}: {response.text[:120]}")
         except Exception as e:
